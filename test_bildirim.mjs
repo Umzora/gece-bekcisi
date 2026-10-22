@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const html = fs.readFileSync('C:/Users/Nutzer/gece-bekcisi/index.html', 'utf8');
+const html = fs.readFileSync(process.argv[2] || 'C:/Users/Nutzer/gece-bekcisi/index.html', 'utf8');
 const kod = html.match(/<script>([\s\S]*)<\/script>/)[1];
 
 const istekler = [];

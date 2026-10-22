@@ -96,7 +96,12 @@ details .field + .field{margin-top:10px}
 .warn{border-radius:12px;padding:10px 12px;font-size:.92rem;background:var(--surface-2);border-left:4px solid var(--warn)}
 .warn.bad{border-left-color:var(--bad)}
 .preview{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;max-width:100%}
-.preview video{width:100%;height:100%;object-fit:cover;display:block}
+.preview{touch-action:none;user-select:none;-webkit-user-select:none}
+.preview video{width:100%;height:100%;object-fit:contain;display:block}
+.roi{position:absolute;border:2px dashed var(--accent);background:rgba(183,161,255,.14);border-radius:4px;pointer-events:none}
+.roi-row{display:flex;align-items:center;gap:10px}
+.roi-row p{flex:1;min-width:0}
+.roi-row .btn{min-height:40px;flex:none}
 .meters{display:grid;gap:10px}
 .meter{display:grid;grid-template-columns:5.6rem minmax(0,1fr) 6.2rem;align-items:center;gap:10px;font-size:.9rem}
 .meter .bar{position:relative;height:12px;border-radius:6px;background:var(--surface-2);overflow:hidden}
@@ -192,7 +197,8 @@ details .field + .field{margin-top:10px}
     <h2>3 · Neyi takip etsin?</h2>
     <div>
       <label class="switch"><span class="txt"><b>Kamera · hareket</b><small>Uzun süren, özellikle ritmik hareketi fark eder. Loş ışık gerekir.</small></span><input type="checkbox" id="optCam"><span class="track"></span></label>
-      <label class="switch"><span class="txt"><b>Mikrofon · ses</b><small>Uzun süren ses, inleme, hırıltı. Karanlıkta da çalışır.</small></span><input type="checkbox" id="optMic"><span class="track"></span></label>
+      <label class="switch"><span class="txt"><b>Mikrofon · ses</b><small>Odanın normal sesinden (beyaz gürültü, dalga sesi) farklı, uzun süren ses: inleme, hırıltı, ağlama. Karanlıkta da çalışır.</small></span><input type="checkbox" id="optMic"><span class="track"></span></label>
+      <label class="switch"><span class="txt"><b>Ses tek başına alarm verebilsin</b><small>Kapalıysa ses yalnızca hareketi destekler. Beyaz gürültü yüzünden hâlâ boşuna alarm olursa kapatın.</small></span><input type="checkbox" id="optMicAlone"><span class="track"></span></label>
       <label class="switch"><span class="txt"><b>Yatak titreşimi</b><small>Telefon karyolaya temas ediyorsa sarsılmayı fark eder.</small></span><input type="checkbox" id="optShake"><span class="track"></span></label>
       <label class="switch"><span class="txt"><b>Telefonda siren</b><small>Alarmda bu telefon da öter. Bebek telsizi bu sesi size iletir.</small></span><input type="checkbox" id="optSiren"><span class="track"></span></label>
       <label class="switch"><span class="txt"><b>Ön kamerayı kullan</b><small>Telefonu ekranı yatağa bakacak şekilde koyacaksanız.</small></span><input type="checkbox" id="optFront"><span class="track"></span></label>
@@ -226,6 +232,8 @@ details .field + .field{margin-top:10px}
       <li>Şarja takılı kalsın. Yastık, yorgan ya da şilte altına koymayın; şarjdayken ısınır.</li>
       <li>Kamera karanlıkta göremez. Loş bir gece lambası açık kalsın ya da yalnız mikrofonu kullanın.</li>
       <li>Bu sayfa açık ve önde kalmalı. Ekran kapanırsa izleme durur; sayfa bunu engellemeye çalışır, durursa size bildirim gönderir.</li>
+      <li>Beyaz gürültü / dalga sesi cihazını <b>izlemeyi başlatmadan önce</b> açın. Sayfa ilk 30 saniyede odanın normal sesini öğrenir; cihaz sonradan açılırsa bir kez boşuna alarm verebilir.</li>
+      <li>Duvara ya da tavana hareketli ışık yansıtan bir cihaz varsa, izleme ekranında görüntünün üzerine parmağınızla çizip yalnızca yatağı seçin.</li>
       <li>Başlattıktan sonra elinizi kameranın önünde 15 saniye sallayarak alarmı bir kez deneyin.</li>
     </ul>
   </section>
@@ -259,7 +267,8 @@ details .field + .field{margin-top:10px}
     <div class="row"><button type="button" class="btn" id="pCopy">Notları kopyala</button><button type="button" class="btn btn-ghost" id="pEnd">Takibi bitir</button></div>
   </section>
 
-  <div class="preview" id="previewBox"><video id="video" playsinline muted autoplay></video></div>
+  <div class="preview" id="previewBox"><video id="video" playsinline muted autoplay></video><div class="roi" id="roi" hidden></div></div>
+  <div class="roi-row" id="roiRow"><p class="small muted" id="roiTxt">Yalnızca yatağı izlemek için görüntünün üzerine parmağınızla bir dikdörtgen çizin.</p><button type="button" class="btn btn-ghost" id="roiReset" hidden>Tüm görüntü</button></div>
 
   <section class="card">
     <div class="meters">
@@ -309,9 +318,11 @@ const TEST = /[?&]test\b/.test(location.search);
 const THR = {
   motion: [0.05, 0.03, 0.018, 0.011, 0.007],   // değişen piksel oranı (taban gürültünün üstü)
   shake:  [0.30, 0.18, 0.10, 0.06, 0.035],     // m/s² (taban titreşimin üstü)
-  sound:  [18, 14, 10, 7, 5]                   // dB (ortam sesinin üstü)
+  sound:  [8, 6, 4.5, 3.5, 2.5]               // dB: odanın her zamanki sesinden (dalga sesi dahil) farkı
 };
-const WARMUP = TEST ? 2 : 20;            // sn: ortamın "sakin" halini öğrenme
+const WARM_Q = +new URLSearchParams(location.search).get('warm');
+const WARMUP = TEST ? (WARM_Q || 2) : 30;  // sn: odanın normal görüntüsünü ve sesini öğrenme
+const BANDS = [100, 200, 300, 450, 650, 900, 1250, 1700, 2300, 3100, 4200, 5600, 7500];
 const POST_CHECKS = [5, 10, 15, 20, 30, 40, 50, 60];
 const POST_PAUSE_MIN = 5;                // nöbet onaylanınca yanında olduğunuz için kısa algılama arası
 const REPEAT_MS = 45000, REPEAT_MAX = 6;
@@ -323,7 +334,7 @@ function genTopic() {
   const a = new Uint8Array(10); crypto.getRandomValues(a);
   return 'gece-' + Array.from(a, b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
 }
-const cfg = load('gb.cfg', {topic: '', server: 'https://ntfy.sh', click: '', cam: true, mic: true, shake: false, siren: true, front: false, sens: 3, dur: 12,
+const cfg = load('gb.cfg', {topic: '', server: 'https://ntfy.sh', click: '', cam: true, mic: true, micAlone: true, shake: false, siren: true, front: false, sens: 3, dur: 12, roi: null,
   po_token: '', po_user: '', po_sound: 'siren', po_sound_ozel: '', ntfy_on: true});
 if (!cfg.topic) { cfg.topic = genTopic(); save('gb.cfg', cfg); }
 
@@ -491,34 +502,70 @@ function rhythm(arr, minLag, maxLag) {
 }
 
 /* ---------- algılayıcılar ---------- */
-const W = 80, H = 60;
-const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+const W = 80, H = 60, SW = 160, SH = 120;
+const cv = document.createElement('canvas'); cv.width = SW; cv.height = SH;
 const cx = cv.getContext('2d', {willReadFrequently: true});
-let prevGray = null;
+cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+let prevGray = null, prevLum = 0;
+const dHist = new Uint32Array(256);
+function roiBox() {
+  const r = cfg.roi || {x0: 0, y0: 0, x1: 1, y1: 1};
+  const x0 = Math.floor(r.x0 * W), y0 = Math.floor(r.y0 * H);
+  return [x0, y0, Math.min(W, Math.max(x0 + 4, Math.ceil(r.x1 * W))), Math.min(H, Math.max(y0 + 4, Math.ceil(r.y1 * H)))];
+}
 function sampleFrame() {
   const v = $('#video');
   if (!v || v.readyState < 2) return;
-  cx.drawImage(v, 0, 0, W, H);
-  const d = cx.getImageData(0, 0, W, H).data;
-  const g = new Uint8Array(W * H);
-  let lum = 0;
-  for (let i = 0, j = 0; i < d.length; i += 4, j++) { const y = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8; g[j] = y; lum += y; }
-  lum /= W * H;
-  if (prevGray) {
-    const thr = lum < 40 ? 18 : 12;
-    let c = 0;
-    for (let j = 0; j < g.length; j++) if (Math.abs(g[j] - prevGray[j]) > thr) c++;
-    st.fr.push(c / g.length);
+  cx.drawImage(v, 0, 0, SW, SH);
+  const d = cx.getImageData(0, 0, SW, SH).data;
+  // 2x2 blok ortalaması: loş odadaki kamera karıncalanmasını azaltır
+  const g = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let sum = 0;
+    for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) { const i = ((y * 2 + dy) * SW + x * 2 + dx) * 4; sum += d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29; }
+    g[y * W + x] = sum / 1024;
   }
-  prevGray = g;
+  const [x0, y0, x1, y1] = roiBox();
+  const n = (x1 - x0) * (y1 - y0);
+  let lum = 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) lum += g[y * W + x];
+  lum /= n;
+  if (prevGray) {
+    // bütün görüntünün birlikte aydınlanıp kararması (gece lambası, otomatik pozlama) hareket sayılmaz
+    const shift = lum - prevLum;
+    const diffs = new Float32Array(n);
+    dHist.fill(0);
+    let k = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const j = y * W + x, dd = Math.abs(g[j] - prevGray[j] - shift);
+      diffs[k++] = dd; dHist[Math.min(255, dd | 0)]++;
+    }
+    // karıncalanma seviyesi = farkların ortancası (piksellerin çoğu durağandır); eşik buna göre ayarlanır
+    let acc = 0, med = 0;
+    for (let b = 0; b < 256; b++) { acc += dHist[b]; if (acc >= n / 2) { med = b + 0.5; break; } }
+    const thr = Math.max(8, med * 4 + 3);
+    let c = 0;
+    for (let i = 0; i < n; i++) if (diffs[i] > thr) c++;
+    st.fr.push(c / n);
+  }
+  prevGray = g; prevLum = lum;
   st.lumSum += lum; st.lumN++;
 }
+// Ses, frekans bantlarına bölünerek ölçülür: dalga sesi bütün bantları birlikte kabartır,
+// inleme, ağlama ya da hırıltı ise belirli bantlarda yeni bir "renk" oluşturur.
 function sampleAudio() {
   if (!st.an) return;
-  st.an.getFloatTimeDomainData(st.abuf);
-  let s = 0;
-  for (let i = 0; i < st.abuf.length; i++) s += st.abuf[i] * st.abuf[i];
-  st.snd.push(10 * Math.log10(s / st.abuf.length + 1e-12));
+  st.an.getFloatFrequencyData(st.fbuf);
+  const binHz = st.ac.sampleRate / st.an.fftSize;
+  const out = new Float32Array(BANDS.length - 1);
+  for (let b = 0; b < out.length; b++) {
+    const i0 = Math.max(1, Math.floor(BANDS[b] / binHz));
+    const i1 = Math.min(st.fbuf.length, Math.max(i0 + 1, Math.floor(BANDS[b + 1] / binHz)));
+    let p = 0;
+    for (let i = i0; i < i1; i++) p += Math.pow(10, st.fbuf[i] / 10);
+    out[b] = 10 * Math.log10(p / (i1 - i0) + 1e-20);
+  }
+  st.snd.push(out);
 }
 function onMotion(e) {
   let x, y, z;
@@ -555,9 +602,9 @@ async function startMedia() {
   }
   if (cfg.mic) {
     const src = st.ac.createMediaStreamSource(new MediaStream(st.stream.getAudioTracks()));
-    st.an = st.ac.createAnalyser(); st.an.fftSize = 2048;
+    st.an = st.ac.createAnalyser(); st.an.fftSize = 2048; st.an.smoothingTimeConstant = 0.3;
     src.connect(st.an);
-    st.abuf = new Float32Array(st.an.fftSize);
+    st.fbuf = new Float32Array(st.an.frequencyBinCount);
     st.timers.push(setInterval(sampleAudio, 100));
   }
 }
@@ -568,49 +615,68 @@ function forcedOn(kind) { return st.forced && st.forced.kind === kind && Date.no
 
 function evaluateSecond() {
   const si = cfg.sens - 1;
+  // ısınma sırasında ve duraklatmada seviyeler ölçülür ama alarm hesabına girmez
+  const counts = (Date.now() - st.startedAt) / 1000 >= WARMUP;
+  const learn = !st.alarm && !st.pausedUntil;
   // kamera
   let mLvl = 0, mOn = false, mR = 0;
   if (cfg.cam && st.fr.length) {
     const mean = avg(st.fr);
     st.frHist.push(...st.fr); trim(st.frHist, 50); st.fr = [];
-    st.rawM.push(mean); trim(st.rawM, 90);
+    if (learn || st.rawM.length < 5) { st.rawM.push(mean); trim(st.rawM, 90); }
     const act = Math.max(0, mean - pct(st.rawM, 0.2));
-    mLvl = act / THR.motion[si]; mOn = mLvl > 1;
     mR = rhythm(st.frHist, 2, 12);
+    // 1-6 Hz'de tekrar eden hareket klonik nöbetin imzası; kamera gürültüsü ve
+    // yavaş ışık oynaması bu ritmi vermez. Ritim varsa eşiği indiriyoruz, yoksa
+    // hassasiyet 1'de (az alarm) belirgin bir nöbet eşiğin altında kalabiliyordu.
+    const thrM = THR.motion[si] / (mR > 0.45 ? 1.6 : 1);
+    mLvl = act / thrM; mOn = mLvl > 1;
     st.lum = st.lumN ? st.lumSum / st.lumN : null; st.lumSum = 0; st.lumN = 0;
   }
   if (forcedOn('motion')) { mLvl = 1.6; mOn = true; mR = 0.6; }
-  st.hM.push(mOn ? (mR > 0.35 ? 1.5 : 1) : 0); trim(st.hM, 60);
+  st.hM.push(counts && mOn ? (mR > 0.35 ? 1.5 : 1) : 0); trim(st.hM, 60);
   // mikrofon
   let sLvl = 0, sOn = false;
   if (cfg.mic && st.snd.length) {
-    const db = avg(st.snd); st.snd = [];
-    st.rawS.push(db); trim(st.rawS, 120);
-    sLvl = Math.max(0, db - pct(st.rawS, 0.2)) / THR.sound[si]; sOn = sLvl > 1;
+    const nb = st.snd[0].length, cur = new Array(nb).fill(0);
+    st.snd.forEach(v => { for (let b = 0; b < nb; b++) cur[b] += v[b] / st.snd.length; });
+    st.snd = [];
+    const lvl = avg(cur);
+    const shape = cur.map(x => x - lvl);
+    if (learn || st.rawS.length < 5) { st.rawS.push({lvl, shape}); trim(st.rawS, 180); }
+    // odanın "normal" sesi: son 3 dakikadaki dalga tepeleri dahil (en yeni 10 sn hariç, olay kendini normal saymasın)
+    const ref = st.rawS.length > 40 ? st.rawS.slice(0, -10) : st.rawS;
+    const ex = shape.map((x, b) => x - pct(ref.map(r => r.shape[b]), 0.85)).sort((a, b) => b - a);
+    const novel = (ex[0] + ex[1] + ex[2]) / 3;            // yeni bir ses rengi: inleme, ağlama, hırıltı
+    const louder = lvl - pct(ref.map(r => r.lvl), 0.85) - 4; // her şeyin birden yükselmesi: daha yüksek eşik
+    sLvl = Math.max(0, novel, louder) / THR.sound[si];
+    sOn = Math.max(sLvl, st.prevS || 0) > 1;   // inlemedeki nefes aralarını köprüle
+    st.prevS = sLvl;
   }
   if (forcedOn('sound')) { sLvl = 1.6; sOn = true; }
-  st.hS.push(sOn ? 1 : 0); trim(st.hS, 60);
+  st.hS.push(counts && sOn ? 1 : 0); trim(st.hS, 60);
   // titreşim
   let aLvl = 0, aOn = false, aR = 0;
   if (cfg.shake && st.acc.length) {
     const rms = Math.sqrt(avg(st.acc.map(v => v * v))); st.acc = [];
-    st.rawA.push(rms); trim(st.rawA, 90);
+    if (learn || st.rawA.length < 5) { st.rawA.push(rms); trim(st.rawA, 90); }
     aLvl = Math.max(0, rms - pct(st.rawA, 0.2)) / THR.shake[si]; aOn = aLvl > 1;
     aR = rhythm(st.accHist, 10, 60);
   }
-  st.hA.push(aOn ? (aR > 0.35 ? 1.5 : 1) : 0); trim(st.hA, 60);
+  st.hA.push(counts && aOn ? (aR > 0.35 ? 1.5 : 1) : 0); trim(st.hA, 60);
 
   const M = score(st.hM), S = score(st.hS), A = score(st.hA);
   const mv = Math.max(M, A);
-  const risk = Math.max(mv, S, mv >= 0.5 && S >= 0.5 ? 0.8 : 0);
+  const risk = Math.max(mv, cfg.micAlone ? S : 0, mv >= 0.5 && S >= 0.5 ? 0.8 : 0);
   st.last = {m: mLvl, s: sLvl, a: aLvl, mR, aR, M, S, A, risk};
 }
 function alarmReason() {
   const L = st.last, parts = [];
   if (L.M >= 0.5) parts.push(`kamerada uzun süren ${L.mR > 0.35 ? 'ritmik ' : ''}hareket`);
   if (L.A >= 0.5) parts.push(`yatakta ${L.aR > 0.35 ? 'ritmik ' : ''}sarsılma`);
-  if (L.S >= 0.5) parts.push('uzun süren ses');
-  return parts.length ? parts.join(', ') : 'uzun süren hareket ya da ses';
+  if (L.S >= 0.5) parts.push('odanın normal sesinden farklı, uzun süren ses');
+  const why = parts.length ? parts.join(', ') : 'uzun süren hareket ya da ses';
+  return `${why} (hareket %${Math.round(Math.max(L.M, L.A) * 100)}, ses %${Math.round(L.S * 100)})`;
 }
 
 /* ---------- ana döngü ---------- */
@@ -733,7 +799,7 @@ document.addEventListener('visibilitychange', () => {
   if (!st.running) return;
   if (document.hidden) {
     st.hiddenAt = Date.now();
-    beacon('Gece Bekçisi durdu!', "Samsung'da ekran kapandı ya da sayfa arka plana geçti. Şu an izleme yapılmıyor.", 4, ['warning']);
+    beacon('Gece Bekçisi durdu!', "Samsung'da ekran kapandı ya da sayfa arka plana geçti. Şu an izleme yapılmıyor.", 5, ['warning']);
     logEvent('Sayfa arka plana geçti, izleme durdu');
   } else {
     acquireWake();
@@ -760,7 +826,8 @@ async function start() {
   if (cfg.shake) window.addEventListener('devicemotion', onMotion);
   Object.assign(st, {running: true, startedAt: Date.now(), pausedUntil: 0, alarm: null, lastAlarmEnd: 0, fr: [], frHist: [], snd: [], acc: [], accHist: [], rawM: [], rawS: [], rawA: [], hM: [], hS: [], hA: [], warned: {}, lum: null});
   prevGray = null;
-  $('#previewBox').hidden = !cfg.cam;
+  $('#previewBox').hidden = !cfg.cam; $('#roiRow').hidden = !cfg.cam;
+  setTimeout(drawRoi, 600);
   $('#mMotion').hidden = !cfg.cam; $('#mSound').hidden = !cfg.mic; $('#mShake').hidden = !cfg.shake;
   $('#setup').hidden = true; $('#watch').hidden = false; window.scrollTo(0, 0);
   acquireWake();
@@ -801,7 +868,7 @@ function renderWatch(now) {
   const status = $('#status');
   const L = st.last;
   let title, sub, state;
-  if (elapsed < WARMUP) { state = 'warmup'; title = 'Ortam öğreniliyor'; sub = `${Math.ceil(WARMUP - elapsed)} sn sonra izleme başlar. Odanın sakin olduğundan emin olun.`; }
+  if (elapsed < WARMUP) { state = 'warmup'; title = 'Ortam öğreniliyor'; sub = `${Math.ceil(WARMUP - elapsed)} sn sonra izleme başlar. Odanın normal görüntüsü ve sesi (beyaz gürültü dahil) öğreniliyor.`; }
   else if (st.pausedUntil) { state = 'paused'; title = 'Algılama duraklatıldı'; sub = `Kendiliğinden açılma saati: ${hm(new Date(st.pausedUntil))}`; }
   else { state = 'on'; title = 'İzleniyor'; sub = `Başlangıç: ${hm(new Date(st.startedAt))}`; }
   status.dataset.state = state;
@@ -809,7 +876,7 @@ function renderWatch(now) {
   $('#dimTxt').textContent = `${title} · ${hm(new Date())} · açmak için dokunun`;
 
   setMeter('#mMotion', L.m || 0, (L.m || 0) > 1 ? (L.mR > 0.35 ? 'ritmik hareket' : 'hareket') : 'sakin', true);
-  setMeter('#mSound', L.s || 0, (L.s || 0) > 1 ? 'ses var' : 'sakin', true);
+  setMeter('#mSound', L.s || 0, (L.s || 0) > 1 ? 'farklı ses' : 'normal', true);
   setMeter('#mShake', L.a || 0, (L.a || 0) > 1 ? (L.aR > 0.35 ? 'ritmik sarsılma' : 'sarsılma') : 'sakin', true);
   const risk = (L.risk || 0) / 0.8;
   const r = $('#mRisk');
@@ -872,7 +939,7 @@ function bindSetup() {
     logEvent(ok ? 'Pushover alarm denemesi gönderildi' : 'Pushover alarm denemesi gönderilemedi');
   });
   $('#click').value = cfg.click;
-  [['#optCam', 'cam'], ['#optMic', 'mic'], ['#optShake', 'shake'], ['#optSiren', 'siren'], ['#optFront', 'front']].forEach(([id, k]) => {
+  [['#optCam', 'cam'], ['#optMic', 'mic'], ['#optMicAlone', 'micAlone'], ['#optShake', 'shake'], ['#optSiren', 'siren'], ['#optFront', 'front']].forEach(([id, k]) => {
     const el = $(id); el.checked = !!cfg[k];
     el.addEventListener('change', () => { cfg[k] = el.checked; save('gb.cfg', cfg); });
   });
@@ -928,7 +995,44 @@ function bindSetup() {
   renderLog();
 }
 
-if (TEST) window.__gb = {st, cfg, force(kind, secs) { st.forced = {kind, until: Date.now() + secs * 1000}; }, notify, poBody, poPrio, poAktif, queue, alarmSesi};
+/* ---------- izleme alanı: yalnızca yatağı izlemek için ---------- */
+function videoRect() {
+  const box = $('#previewBox').getBoundingClientRect(), v = $('#video');
+  const vw = v.videoWidth || 4, vh = v.videoHeight || 3;
+  const sc = Math.min(box.width / vw, box.height / vh), w = vw * sc, h = vh * sc;
+  return {box, x: (box.width - w) / 2, y: (box.height - h) / 2, w, h};
+}
+function drawRoi(r) {
+  r = r || cfg.roi;
+  const el = $('#roi');
+  $('#roiReset').hidden = !cfg.roi;
+  $('#roiTxt').textContent = cfg.roi ? 'Yalnızca işaretli alan izleniyor. Değiştirmek için yeniden çizin.' : 'Yalnızca yatağı izlemek için görüntünün üzerine parmağınızla bir dikdörtgen çizin.';
+  if (!r) { el.hidden = true; return; }
+  const vr = videoRect();
+  el.hidden = false;
+  el.style.left = (vr.x + r.x0 * vr.w) + 'px'; el.style.top = (vr.y + r.y0 * vr.h) + 'px';
+  el.style.width = ((r.x1 - r.x0) * vr.w) + 'px'; el.style.height = ((r.y1 - r.y0) * vr.h) + 'px';
+}
+function resetCamBaseline() { st.rawM = []; st.hM = st.hM.map(() => 0); st.frHist = []; prevGray = null; }
+(function bindRoi() {
+  const box = $('#previewBox');
+  let startPt = null, draft = null;
+  const norm = e => { const vr = videoRect(); return {x: Math.min(1, Math.max(0, (e.clientX - vr.box.left - vr.x) / vr.w)), y: Math.min(1, Math.max(0, (e.clientY - vr.box.top - vr.y) / vr.h))}; };
+  const rect = (a, b) => ({x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y)});
+  box.addEventListener('pointerdown', e => { startPt = norm(e); draft = null; try { box.setPointerCapture(e.pointerId); } catch (x) {} });
+  box.addEventListener('pointermove', e => { if (!startPt) return; draft = rect(startPt, norm(e)); drawRoi(draft); });
+  box.addEventListener('pointerup', () => {
+    if (draft && draft.x1 - draft.x0 > 0.1 && draft.y1 - draft.y0 > 0.1) {
+      cfg.roi = draft; save('gb.cfg', cfg); resetCamBaseline();
+      logEvent('İzleme alanı seçildi'); toast('Yalnızca seçtiğiniz alan izlenecek.');
+    }
+    startPt = null; draft = null; drawRoi();
+  });
+  $('#roiReset').addEventListener('click', () => { cfg.roi = null; save('gb.cfg', cfg); resetCamBaseline(); drawRoi(); logEvent('Tüm görüntü izleniyor'); });
+  window.addEventListener('resize', () => drawRoi());
+})();
+
+if (TEST) window.__gb = {st, cfg, force(kind, secs) { st.forced = {kind, until: Date.now() + secs * 1000}; }, notify, poBody, poPrio, poAktif, queue, alarmSesi, evaluateSecond, tick, alarmReason, THR, WARMUP, BANDS};
 bindSetup();
 })();
 </script>

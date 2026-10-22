@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0D0A14">
+<title>Gece Bekçisi</title>
+<style>
+/* Layout: one phone-width column on a near-black ground, so the screen lights the child's room as little as possible */
+:root{
+  color-scheme:dark;
+  --bg:#0D0A14;
+  --surface:#18131F;
+  --surface-2:#221B2C;
+  --line:#30283D;
+  --fg:#EEE9F7;
+  --muted:#9C93AE;
+  --accent:#B7A1FF;
+  --accent-ink:#1B1430;
+  --ok:#5ACF8C;
+  --warn:#F0B34E;
+  --bad:#FF6B78;
+  --alarm:#6E0D1C;
+  --alarm-ink:#FFF1F2;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2.5px solid var(--accent);outline-offset:2px}
+h1,h2{margin:0;line-height:1.15;text-wrap:balance}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.88rem}
+.num{font-variant-numeric:tabular-nums}
+
+.screen{max-width:32rem;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(16px + env(safe-area-inset-top,0px)) calc(28px + env(safe-area-inset-bottom,0px));display:grid;gap:14px}
+.hero h1{font-size:1.9rem;font-weight:800;letter-spacing:-.02em}
+.hero p{margin-top:6px}
+.disclaimer{font-size:.88rem;color:var(--warn);border:1px solid var(--warn);border-radius:12px;padding:10px 12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;gap:12px;min-width:0}
+.card h2{font-size:1.1rem;font-weight:750}
+.card ol,.card ul{margin:0;padding-left:1.2rem;display:grid;gap:6px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:50px;padding:0 18px;border-radius:14px;border:0;font-weight:750;font-size:1rem;background:var(--surface-2);color:var(--fg);text-align:center}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-big{min-height:62px;font-size:1.12rem;border-radius:18px}
+.btn-alarm{background:var(--bad);color:#1A0508}
+.btn-ghost{background:transparent;border:1.5px solid var(--line)}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.row .btn{flex:1 1 9rem}
+
+.topic{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px dashed var(--accent);border-radius:12px;padding:10px 12px}
+.topic span{flex:1;min-width:0;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:1.05rem;font-weight:700;overflow-wrap:anywhere;color:var(--accent)}
+.topic button{border:0;background:var(--surface-2);border-radius:10px;padding:8px 12px;font-weight:700;font-size:.9rem;flex:none}
+
+.field{display:grid;gap:6px}
+.lbl{font-size:.85rem;font-weight:700;color:var(--muted)}
+.in{font:inherit;font-size:16px;min-height:44px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);width:100%;min-width:0}
+details summary{cursor:pointer;color:var(--muted);font-weight:700;font-size:.92rem;padding:4px 0}
+details[open] summary{margin-bottom:10px}
+details .field + .field{margin-top:10px}
+
+.switch{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:4px 0;border-top:1px solid var(--line)}
+.switch:first-of-type{border-top:0}
+.switch .txt{min-width:0}
+.switch .txt b{display:block}
+.switch .txt small{color:var(--muted);font-size:.84rem}
+.switch input{position:absolute;opacity:0;width:1px;height:1px}
+.track{flex:none;width:52px;height:30px;border-radius:999px;background:var(--line);position:relative;transition:background .15s}
+.track::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--fg);transition:transform .15s}
+.switch input:checked + .track{background:var(--accent)}
+.switch input:checked + .track::after{transform:translateX(22px);background:var(--accent-ink)}
+.switch input:focus-visible + .track{outline:2.5px solid var(--accent);outline-offset:2px}
+
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;background:var(--bg);border-radius:12px;padding:4px}
+.seg label{position:relative}
+.seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg span{display:grid;place-items:center;min-height:40px;border-radius:9px;font-weight:700;font-size:.92rem;color:var(--muted);cursor:pointer}
+.seg input:checked + span{background:var(--surface-2);color:var(--fg);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.seg input:focus-visible + span{outline:2.5px solid var(--accent)}
+.seg-ends{display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted)}
+
+.log{display:grid;gap:0}
+.log div{display:grid;grid-template-columns:6.6rem minmax(0,1fr);gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:.9rem}
+.log div:first-child{border-top:0}
+.log time{color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* izleme ekranı */
+.status{display:flex;align-items:center;gap:12px}
+.dot{width:14px;height:14px;border-radius:50%;background:var(--ok);flex:none;box-shadow:0 0 0 0 var(--ok);animation:pulse 2.4s ease-out infinite}
+.status[data-state="paused"] .dot,.status[data-state="warmup"] .dot{background:var(--warn);animation:none}
+.status b{font-size:1.25rem}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(90,207,140,.55)}80%{box-shadow:0 0 0 12px rgba(90,207,140,0)}100%{box-shadow:0 0 0 0 rgba(90,207,140,0)}}
+.warn{border-radius:12px;padding:10px 12px;font-size:.92rem;background:var(--surface-2);border-left:4px solid var(--warn)}
+.warn.bad{border-left-color:var(--bad)}
+.preview{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;max-width:100%}
+.preview video{width:100%;height:100%;object-fit:cover;display:block}
+.meters{display:grid;gap:10px}
+.meter{display:grid;grid-template-columns:5.6rem minmax(0,1fr) 6.2rem;align-items:center;gap:10px;font-size:.9rem}
+.meter .bar{position:relative;height:12px;border-radius:6px;background:var(--surface-2);overflow:hidden}
+.meter .bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent);border-radius:6px;transition:width .3s}
+.meter .bar b{position:absolute;left:50%;top:-2px;bottom:-2px;width:2px;background:var(--fg);opacity:.6}
+.meter.on .bar i{background:var(--warn)}
+.meter.hot .bar i{background:var(--bad)}
+.meter em{font-style:normal;color:var(--muted);text-align:right;font-size:.82rem}
+.meter-risk{padding-top:8px;border-top:1px solid var(--line)}
+
+.post{border-color:var(--accent)}
+.post-clock{font-size:2.6rem;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:42px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--bg);font-weight:650;font-size:.92rem}
+
+/* alarm */
+.overlay{position:fixed;inset:0;z-index:50;background:var(--alarm);color:var(--alarm-ink);display:flex;overflow:auto;padding:calc(24px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));animation:flash 1.2s ease-in-out infinite alternate}
+@keyframes flash{from{background:var(--alarm)}to{background:#9A1328}}
+.ov-inner{margin:auto;width:100%;max-width:30rem;display:grid;gap:14px}
+.ov-inner .eyebrow{font-size:.9rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.ov-clock{font-size:clamp(4rem,22vw,6.5rem);font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.btn-light{background:var(--alarm-ink);color:var(--alarm)}
+.btn-ghost-light{background:transparent;border:1.5px solid rgba(255,241,242,.5);color:var(--alarm-ink)}
+
+.dim{position:fixed;inset:0;z-index:40;background:#000;display:flex;align-items:flex-end;justify-content:center;padding:0 16px calc(28px + env(safe-area-inset-bottom,0px))}
+.dim p{color:#3A3046;font-size:.85rem;text-align:center}
+
+.toast{position:fixed;z-index:60;left:0;right:0;bottom:calc(20px + env(safe-area-inset-bottom,0px));margin:0 auto;width:calc(100% - 32px);max-width:30rem;background:var(--fg);color:var(--bg);border-radius:12px;padding:12px 14px;font-weight:650;font-size:.93rem}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- KURULUM -->
+<main id="setup" class="screen">
+  <header class="hero">
+    <h1>Gece Bekçisi</h1>
+    <p class="muted">Bu telefon çocuğun odasında durur. Uzun süren hareket ya da ses fark edince anne ve babanın iPhone'una acil bildirim gönderir, nöbetten sonraki 1 saat boyunca da kontrol hatırlatır.</p>
+  </header>
+  <p class="disclaimer">Tıbbi cihaz değildir. Her nöbeti yakalayamaz, boşuna da alarm verebilir. Diğer önlemlerin yerine değil, yanında kullanın.</p>
+
+  <section class="card">
+    <h2>1 · iPhone'lara bildirim</h2>
+    <ol>
+      <li>Anne ve babanın iPhone'una App Store'dan <b>ntfy</b> uygulamasını kurun.</li>
+      <li>Uygulamada <b>+</b>'ya dokunun, aşağıdaki konu adını aynen yazın, <b>Subscribe</b> deyin.</li>
+      <li>Bildirim izni sorulursa <b>İzin Ver</b>.</li>
+    </ol>
+    <div class="topic"><span id="topic"></span><button type="button" id="copyTopic">Kopyala</button></div>
+    <button type="button" class="btn" id="testBtn">Deneme bildirimi gönder</button>
+    <p class="small muted" id="testRes">Deneme bildirimi iki iPhone'a da gelmeli. Gelmiyorsa konu adını kontrol edin.</p>
+    <details>
+      <summary>Gelişmiş</summary>
+      <label class="field"><span class="lbl">Bildirim sunucusu</span><input class="in" id="server" type="url" inputmode="url" autocomplete="off"></label>
+      <label class="field"><span class="lbl">Bildirime dokununca açılacak adres (isteğe bağlı, ör. Doz Defteri linki)</span><input class="in" id="click" type="url" inputmode="url" autocomplete="off" placeholder="https://"></label>
+      <div class="field"><button type="button" class="btn btn-ghost" id="newTopic">Yeni konu adı üret</button><span class="small muted">Yeni ad üretirseniz iPhone'larda da yeni konuya abone olmanız gerekir.</span></div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>2 · Neyi takip etsin?</h2>
+    <div>
+      <label class="switch"><span class="txt"><b>Kamera · hareket</b><small>Uzun süren, özellikle ritmik hareketi fark eder. Loş ışık gerekir.</small></span><input type="checkbox" id="optCam"><span class="track"></span></label>
+      <label class="switch"><span class="txt"><b>Mikrofon · ses</b><small>Uzun süren ses, inleme, hırıltı. Karanlıkta da çalışır.</small></span><input type="checkbox" id="optMic"><span class="track"></span></label>
+      <label class="switch"><span class="txt"><b>Yatak titreşimi</b><small>Telefon karyolaya temas ediyorsa sarsılmayı fark eder.</small></span><input type="checkbox" id="optShake"><span class="track"></span></label>
+      <label class="switch"><span class="txt"><b>Telefonda siren</b><small>Alarmda bu telefon da öter. Bebek telsizi bu sesi size iletir.</small></span><input type="checkbox" id="optSiren"><span class="track"></span></label>
+      <label class="switch"><span class="txt"><b>Ön kamerayı kullan</b><small>Telefonu ekranı yatağa bakacak şekilde koyacaksanız.</small></span><input type="checkbox" id="optFront"><span class="track"></span></label>
+    </div>
+    <div class="field">
+      <span class="lbl">Hassasiyet</span>
+      <div class="seg" role="radiogroup" aria-label="Hassasiyet">
+        <label><input type="radio" name="sens" id="sens-1" value="1"><span>1</span></label>
+        <label><input type="radio" name="sens" id="sens-2" value="2"><span>2</span></label>
+        <label><input type="radio" name="sens" id="sens-3" value="3"><span>3</span></label>
+        <label><input type="radio" name="sens" id="sens-4" value="4"><span>4</span></label>
+        <label><input type="radio" name="sens" id="sens-5" value="5"><span>5</span></label>
+      </div>
+      <div class="seg-ends"><span>Az alarm</span><span>Hiçbir şeyi kaçırmasın</span></div>
+    </div>
+    <div class="field">
+      <span class="lbl">Kaç saniye sürerse alarm versin?</span>
+      <div class="seg" role="radiogroup" aria-label="Alarm süresi">
+        <label><input type="radio" name="dur" id="dur-8" value="8"><span>8 sn</span></label>
+        <label><input type="radio" name="dur" id="dur-12" value="12"><span>12 sn</span></label>
+        <label><input type="radio" name="dur" id="dur-20" value="20"><span>20 sn</span></label>
+        <label><input type="radio" name="dur" id="dur-30" value="30"><span>30 sn</span></label>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3 · Telefonu yerleştirin</h2>
+    <ul>
+      <li>Yatağın tamamını görecek şekilde, 1–2 metre uzağa, sabit bir yere koyun.</li>
+      <li>Şarja takılı kalsın. Yastık, yorgan ya da şilte altına koymayın; şarjdayken ısınır.</li>
+      <li>Kamera karanlıkta göremez. Loş bir gece lambası açık kalsın ya da yalnız mikrofonu kullanın.</li>
+      <li>Bu sayfa açık ve önde kalmalı. Ekran kapanırsa izleme durur; sayfa bunu engellemeye çalışır, durursa size bildirim gönderir.</li>
+      <li>Başlattıktan sonra elinizi kameranın önünde 15 saniye sallayarak alarmı bir kez deneyin.</li>
+    </ul>
+  </section>
+
+  <p class="small" id="startErr" hidden></p>
+  <button type="button" class="btn btn-primary btn-big" id="startBtn">İzlemeyi başlat</button>
+
+  <section class="card">
+    <h2>Son olaylar</h2>
+    <div class="log" id="log"></div>
+    <button type="button" class="btn btn-ghost" id="copyLog">Olayları kopyala</button>
+  </section>
+</main>
+
+<!-- İZLEME -->
+<main id="watch" class="screen" hidden>
+  <div class="status" id="status" data-state="warmup">
+    <span class="dot"></span>
+    <div><b id="stTitle">Ortam öğreniliyor</b><div class="small muted" id="stSub"></div></div>
+  </div>
+  <div id="warns" class="meters"></div>
+
+  <section class="card post" id="post" hidden>
+    <span class="lbl">Nöbet sonrası takip</span>
+    <div><span class="post-clock" id="pClock">00:00</span><span class="muted"> / 60:00</span></div>
+    <p class="small muted" id="pNext"></p>
+    <p class="small" id="pDet"></p>
+    <button type="button" class="btn btn-ghost" id="pDetBtn" hidden>Algılamayı şimdi aç</button>
+    <div class="chips" id="pChips"></div>
+    <div class="log" id="pLog"></div>
+    <div class="row"><button type="button" class="btn" id="pCopy">Notları kopyala</button><button type="button" class="btn btn-ghost" id="pEnd">Takibi bitir</button></div>
+  </section>
+
+  <div class="preview" id="previewBox"><video id="video" playsinline muted autoplay></video></div>
+
+  <section class="card">
+    <div class="meters">
+      <div class="meter" id="mMotion"><span>Hareket</span><div class="bar"><i></i><b></b></div><em>—</em></div>
+      <div class="meter" id="mSound"><span>Ses</span><div class="bar"><i></i><b></b></div><em>—</em></div>
+      <div class="meter" id="mShake"><span>Titreşim</span><div class="bar"><i></i><b></b></div><em>—</em></div>
+      <div class="meter meter-risk" id="mRisk"><span>Alarm</span><div class="bar"><i></i><b style="left:100%;margin-left:-2px"></b></div><em>—</em></div>
+    </div>
+    <p class="small muted">Çizgi, alarm eşiğini gösterir. Çubuk çizgiyi seçtiğiniz süre boyunca geçerse alarm çalar.</p>
+  </section>
+
+  <div class="row">
+    <button type="button" class="btn" id="dimBtn">Ekranı karart</button>
+    <button type="button" class="btn" id="pauseBtn">10 dk duraklat</button>
+  </div>
+  <button type="button" class="btn btn-alarm btn-big" id="manualBtn">Nöbet oldu · 1 saat takip</button>
+  <button type="button" class="btn btn-ghost" id="stopBtn">İzlemeyi durdur</button>
+</main>
+
+<!-- ALARM -->
+<div class="overlay" id="alarm" hidden role="alertdialog" aria-modal="true" aria-labelledby="alTitle">
+  <div class="ov-inner">
+    <div class="eyebrow" id="alTitle">Olası nöbet</div>
+    <div class="ov-clock" id="alClock">00:00</div>
+    <p id="alWhy"></p>
+    <p class="small" id="alSent"></p>
+    <button type="button" class="btn btn-big btn-light" id="alYes">Nöbet oldu · 1 saat takip</button>
+    <button type="button" class="btn btn-ghost-light" id="alNo">Yanlış alarm</button>
+  </div>
+</div>
+
+<div class="dim" id="dim" hidden><p id="dimTxt">İzleniyor · açmak için dokunun</p></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function () {
+'use strict';
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, '0');
+const hm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const mmss = sec => `${pad(Math.floor(sec / 60))}:${pad(Math.floor(sec % 60))}`;
+const MON = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+const stamp = t => { const d = new Date(t); return `${d.getDate()} ${MON[d.getMonth()]} ${hm(d)}`; };
+const TEST = /[?&]test\b/.test(location.search);
+
+// Hassasiyet 1 (az alarm) … 5 (hiçbir şeyi kaçırmasın)
+const THR = {
+  motion: [0.05, 0.03, 0.018, 0.011, 0.007],   // değişen piksel oranı (taban gürültünün üstü)
+  shake:  [0.30, 0.18, 0.10, 0.06, 0.035],     // m/s² (taban titreşimin üstü)
+  sound:  [18, 14, 10, 7, 5]                   // dB (ortam sesinin üstü)
+};
+const WARMUP = TEST ? 2 : 20;            // sn: ortamın "sakin" halini öğrenme
+const POST_CHECKS = [5, 10, 15, 20, 30, 40, 50, 60];
+const POST_PAUSE_MIN = 5;                // nöbet onaylanınca yanında olduğunuz için kısa algılama arası
+const REPEAT_MS = 45000, REPEAT_MAX = 6;
+
+/* ---------- ayarlar ve kayıt ---------- */
+function load(k, def) { try { const v = JSON.parse(localStorage.getItem(k)); return v ? Object.assign({}, def, v) : Object.assign({}, def); } catch (e) { return Object.assign({}, def); } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function genTopic() {
+  const a = new Uint8Array(10); crypto.getRandomValues(a);
+  return 'gece-' + Array.from(a, b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
+}
+const cfg = load('gb.cfg', {topic: '', server: 'https://ntfy.sh', click: '', cam: true, mic: true, shake: false, siren: true, front: false, sens: 3, dur: 12});
+if (!cfg.topic) { cfg.topic = genTopic(); save('gb.cfg', cfg); }
+
+let events = [];
+try { events = JSON.parse(localStorage.getItem('gb.events')) || []; } catch (e) {}
+function logEvent(text) {
+  events.unshift({t: Date.now(), text});
+  events = events.slice(0, 200);
+  save('gb.events', events);
+  renderLog();
+}
+function renderLog() {
+  const box = $('#log');
+  box.textContent = '';
+  if (!events.length) { box.innerHTML = '<p class="small muted">Henüz olay yok.</p>'; return; }
+  events.slice(0, 30).forEach(e => {
+    const d = document.createElement('div');
+    const tm = document.createElement('time'); tm.textContent = stamp(e.t);
+    const sp = document.createElement('span'); sp.textContent = e.text;
+    d.append(tm, sp); box.append(d);
+  });
+}
+
+let toastT = 0;
+function toast(msg) { const el = $('#toast'); el.textContent = msg; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 3500); }
+async function copyText(txt) {
+  try { await navigator.clipboard.writeText(txt); toast('Kopyalandı.'); }
+  catch (e) {
+    const ta = document.createElement('textarea'); ta.value = txt; document.body.append(ta); ta.select();
+    try { document.execCommand('copy'); toast('Kopyalandı.'); } catch (e2) { toast('Kopyalanamadı.'); }
+    ta.remove();
+  }
+}
+
+/* ---------- iPhone'lara bildirim (ntfy) ---------- */
+const queue = [];
+function ntfyBody(title, message, priority, tags) {
+  const b = {topic: cfg.topic, title, message, priority: priority || 3, tags: tags || []};
+  if (cfg.click) b.click = cfg.click;
+  return JSON.stringify(b);
+}
+function ntfyUrl() { return (cfg.server || 'https://ntfy.sh').replace(/\/+$/, '') + '/'; }
+async function postRaw(json) {
+  // text/plain gövdeli basit istek: tarayıcı ön kontrol yapmaz, ntfy JSON'u kök adreste okur.
+  // CORS ile gönderiyoruz (ntfy "Access-Control-Allow-Origin: *" verir), çünkü sadece böyle
+  // sunucunun cevabını GÖREBİLİYORUZ. no-cors'ta cevap gizli kalır, reddedilen bildirim de
+  // "gönderildi" sayılırdı ve tekrar deneme kuyruğu hiç çalışmazdı.
+  try {
+    const res = await fetch(ntfyUrl(), {method: 'POST', body: json, keepalive: true});
+    return res.ok;
+  } catch (e) { return false; }
+}
+async function notify(title, message, priority, tags) {
+  const json = ntfyBody(title, message, priority, tags);
+  const ok = await postRaw(json);
+  st.lastSend = {t: Date.now(), ok};
+  if (!ok && (priority || 3) >= 4) queue.push({json, tries: 1, next: Date.now() + 20000});
+  return ok;
+}
+function beacon(title, message, priority, tags) {
+  try { navigator.sendBeacon(ntfyUrl(), new Blob([ntfyBody(title, message, priority, tags)], {type: 'text/plain'})); } catch (e) {}
+}
+async function flushQueue(now) {
+  for (const q of queue.slice()) {
+    if (q.next > now) continue;
+    if (await postRaw(q.json)) queue.splice(queue.indexOf(q), 1);
+    else if (++q.tries > 6) queue.splice(queue.indexOf(q), 1);
+    else q.next = now + 20000;
+  }
+}
+
+/* ---------- durum ---------- */
+const st = {
+  running: false, startedAt: 0, pausedUntil: 0, alarm: null, post: null, lastAlarmEnd: 0,
+  ac: null, stream: null, an: null, abuf: null, siren: null, wake: null, battery: null,
+  timers: [], fr: [], frHist: [], lumSum: 0, lumN: 0, lum: null,
+  snd: [], acc: [], accHist: [], grav: null,
+  rawM: [], rawS: [], rawA: [], hM: [], hS: [], hA: [],
+  last: {m: 0, s: 0, a: 0, risk: 0, mR: 0, aR: 0},
+  warned: {}, hiddenAt: 0, offlineAt: 0, lastSend: null, forced: null
+};
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+const trim = (a, n) => { while (a.length > n) a.shift(); };
+const pct = (a, p) => { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+
+// Ritim: otokorelasyonda, bir çukurdan sonra gelen en yüksek tepe (1–6 Hz aralığı)
+function rhythm(arr, minLag, maxLag) {
+  const n = arr.length;
+  if (n < maxLag * 2) return 0;
+  const m = avg(arr);
+  let den = 0;
+  for (const x of arr) den += (x - m) * (x - m);
+  if (den < 1e-12) return 0;
+  const r = [1];
+  for (let l = 1; l <= maxLag + 1; l++) {
+    let s = 0;
+    for (let i = 0; i + l < n; i++) s += (arr[i] - m) * (arr[i + l] - m);
+    r.push(s / den);
+  }
+  let best = 0, minSoFar = 1;
+  for (let l = 1; l <= maxLag; l++) {
+    minSoFar = Math.min(minSoFar, r[l]);
+    if (l >= minLag && r[l] > r[l - 1] && r[l] >= r[l + 1] && r[l] - minSoFar > 0.15) best = Math.max(best, r[l]);
+  }
+  return best;
+}
+
+/* ---------- algılayıcılar ---------- */
+const W = 80, H = 60;
+const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+const cx = cv.getContext('2d', {willReadFrequently: true});
+let prevGray = null;
+function sampleFrame() {
+  const v = $('#video');
+  if (!v || v.readyState < 2) return;
+  cx.drawImage(v, 0, 0, W, H);
+  const d = cx.getImageData(0, 0, W, H).data;
+  const g = new Uint8Array(W * H);
+  let lum = 0;
+  for (let i = 0, j = 0; i < d.length; i += 4, j++) { const y = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8; g[j] = y; lum += y; }
+  lum /= W * H;
+  if (prevGray) {
+    const thr = lum < 40 ? 18 : 12;
+    let c = 0;
+    for (let j = 0; j < g.length; j++) if (Math.abs(g[j] - prevGray[j]) > thr) c++;
+    st.fr.push(c / g.length);
+  }
+  prevGray = g;
+  st.lumSum += lum; st.lumN++;
+}
+function sampleAudio() {
+  if (!st.an) return;
+  st.an.getFloatTimeDomainData(st.abuf);
+  let s = 0;
+  for (let i = 0; i < st.abuf.length; i++) s += st.abuf[i] * st.abuf[i];
+  st.snd.push(10 * Math.log10(s / st.abuf.length + 1e-12));
+}
+function onMotion(e) {
+  let x, y, z;
+  const a = e.acceleration;
+  if (a && a.x != null) { x = a.x; y = a.y; z = a.z; }
+  else {
+    const g = e.accelerationIncludingGravity;
+    if (!g || g.x == null) return;
+    const v = [g.x, g.y, g.z];
+    st.grav = st.grav ? st.grav.map((p, i) => p * 0.92 + v[i] * 0.08) : v;
+    x = v[0] - st.grav[0]; y = v[1] - st.grav[1]; z = v[2] - st.grav[2];
+  }
+  const m = Math.sqrt(x * x + y * y + z * z);
+  st.acc.push(m); st.accHist.push(m); trim(st.accHist, 240);
+}
+
+async function startMedia() {
+  const c = {};
+  if (cfg.cam) c.video = {facingMode: cfg.front ? 'user' : 'environment', width: {ideal: 640}, height: {ideal: 480}};
+  if (cfg.mic) c.audio = {echoCancellation: false, noiseSuppression: false, autoGainControl: false};
+  if (!c.video && !c.audio) return;
+  st.stream = await navigator.mediaDevices.getUserMedia(c);
+  st.stream.getTracks().forEach(t => t.addEventListener('ended', () => {
+    if (!st.running) return;
+    const what = t.kind === 'video' ? 'Kamera' : 'Mikrofon';
+    notify(`Gece Bekçisi: ${what.toLowerCase()} durdu`, `${what} kapandı, izleme eksik çalışıyor. Samsung'u kontrol edin.`, 5, ['warning']);
+    logEvent(`${what} durdu`);
+  }));
+  if (cfg.cam) {
+    const v = $('#video');
+    v.srcObject = new MediaStream(st.stream.getVideoTracks());
+    try { await v.play(); } catch (e) {}
+    st.timers.push(setInterval(sampleFrame, 80));
+  }
+  if (cfg.mic) {
+    const src = st.ac.createMediaStreamSource(new MediaStream(st.stream.getAudioTracks()));
+    st.an = st.ac.createAnalyser(); st.an.fftSize = 2048;
+    src.connect(st.an);
+    st.abuf = new Float32Array(st.an.fftSize);
+    st.timers.push(setInterval(sampleAudio, 100));
+  }
+}
+
+/* ---------- saniyelik değerlendirme ---------- */
+function score(h) { const D = cfg.dur; const tail = h.slice(-D); return Math.min(1, tail.reduce((a, b) => a + b, 0) / D); }
+function forcedOn(kind) { return st.forced && st.forced.kind === kind && Date.now() < st.forced.until; }
+
+function evaluateSecond() {
+  const si = cfg.sens - 1;
+  // kamera
+  let mLvl = 0, mOn = false, mR = 0;
+  if (cfg.cam && st.fr.length) {
+    const mean = avg(st.fr);
+    st.frHist.push(...st.fr); trim(st.frHist, 50); st.fr = [];
+    st.rawM.push(mean); trim(st.rawM, 90);
+    const act = Math.max(0, mean - pct(st.rawM, 0.2));
+    mLvl = act / THR.motion[si]; mOn = mLvl > 1;
+    mR = rhythm(st.frHist, 2, 12);
+    st.lum = st.lumN ? st.lumSum / st.lumN : null; st.lumSum = 0; st.lumN = 0;
+  }
+  if (forcedOn('motion')) { mLvl = 1.6; mOn = true; mR = 0.6; }
+  st.hM.push(mOn ? (mR > 0.35 ? 1.5 : 1) : 0); trim(st.hM, 60);
+  // mikrofon
+  let sLvl = 0, sOn = false;
+  if (cfg.mic && st.snd.length) {
+    const db = avg(st.snd); st.snd = [];
+    st.rawS.push(db); trim(st.rawS, 120);
+    sLvl = Math.max(0, db - pct(st.rawS, 0.2)) / THR.sound[si]; sOn = sLvl > 1;
+  }
+  if (forcedOn('sound')) { sLvl = 1.6; sOn = true; }
+  st.hS.push(sOn ? 1 : 0); trim(st.hS, 60);
+  // titreşim
+  let aLvl = 0, aOn = false, aR = 0;
+  if (cfg.shake && st.acc.length) {
+    const rms = Math.sqrt(avg(st.acc.map(v => v * v))); st.acc = [];
+    st.rawA.push(rms); trim(st.rawA, 90);
+    aLvl = Math.max(0, rms - pct(st.rawA, 0.2)) / THR.shake[si]; aOn = aLvl > 1;
+    aR = rhythm(st.accHist, 10, 60);
+  }
+  st.hA.push(aOn ? (aR > 0.35 ? 1.5 : 1) : 0); trim(st.hA, 60);
+
+  const M = score(st.hM), S = score(st.hS), A = score(st.hA);
+  const mv = Math.max(M, A);
+  const risk = Math.max(mv, S, mv >= 0.5 && S >= 0.5 ? 0.8 : 0);
+  st.last = {m: mLvl, s: sLvl, a: aLvl, mR, aR, M, S, A, risk};
+}
+function alarmReason() {
+  const L = st.last, parts = [];
+  if (L.M >= 0.5) parts.push(`kamerada uzun süren ${L.mR > 0.35 ? 'ritmik ' : ''}hareket`);
+  if (L.A >= 0.5) parts.push(`yatakta ${L.aR > 0.35 ? 'ritmik ' : ''}sarsılma`);
+  if (L.S >= 0.5) parts.push('uzun süren ses');
+  return parts.length ? parts.join(', ') : 'uzun süren hareket ya da ses';
+}
+
+/* ---------- ana döngü ---------- */
+function tick() {
+  if (!st.running) return;
+  const now = Date.now();
+  evaluateSecond();
+  if (st.pausedUntil && now >= st.pausedUntil) { st.pausedUntil = 0; logEvent('Algılama yeniden açıldı'); }
+  const elapsed = (now - st.startedAt) / 1000;
+  const armed = elapsed >= WARMUP && !st.pausedUntil && !st.alarm && now - st.lastAlarmEnd > 30000;
+  if (armed && st.last.risk >= 0.8) triggerAlarm();
+  if (st.alarm && now - st.alarm.lastPush >= REPEAT_MS && st.alarm.pushes < REPEAT_MAX) {
+    st.alarm.pushes++; st.alarm.lastPush = now;
+    notify('Alarm sürüyor!', `Gece Bekçisi alarmı ${mmss((now - st.alarm.at) / 1000)} dakikadır onaylanmadı. Çocuğun yanına gidin.`, 5, ['rotating_light']);
+  }
+  if (st.post) postTick(now);
+  flushQueue(now);
+  checkLight();
+  renderWatch(now);
+}
+
+function triggerAlarm() {
+  const now = Date.now();
+  st.alarm = {at: now, lastPush: now, pushes: 1, reason: alarmReason()};
+  $('#alWhy').textContent = 'Algılanan: ' + st.alarm.reason + '.';
+  $('#alSent').textContent = "iPhone'lara acil bildirim gönderildi. Onaylanana kadar her 45 saniyede tekrar gönderilir.";
+  $('#alarm').hidden = false; $('#dim').hidden = true;
+  startSiren();
+  const again = st.post ? 'Takip sırasında yeni nöbet olabilir! ' : '';
+  notify(`Olası nöbet! (${hm(new Date(now))})`, `${again}Gece Bekçisi ${st.alarm.reason} algıladı. Çocuğun yanına gidin.`, 5, ['rotating_light']);
+  logEvent('ALARM: ' + st.alarm.reason);
+  renderWatch(now);
+}
+function endAlarm() { stopSiren(); $('#alarm').hidden = true; st.alarm = null; st.lastAlarmEnd = Date.now(); }
+
+function startSiren() {
+  if (!cfg.siren || !st.ac || st.siren) return;
+  try {
+    const o = st.ac.createOscillator(), lfo = st.ac.createOscillator(), lg = st.ac.createGain(), g = st.ac.createGain();
+    o.type = 'square'; o.frequency.value = 880;
+    lfo.type = 'sine'; lfo.frequency.value = 1.3; lg.gain.value = 320;
+    lfo.connect(lg); lg.connect(o.frequency);
+    g.gain.value = 0.35; o.connect(g); g.connect(st.ac.destination);
+    o.start(); lfo.start();
+    st.siren = {o, lfo};
+  } catch (e) {}
+}
+function stopSiren() { if (!st.siren) return; try { st.siren.o.stop(); st.siren.lfo.stop(); } catch (e) {} st.siren = null; }
+
+/* ---------- nöbet sonrası 1 saat ---------- */
+const POST_NOTES = ['Yan yatırıldı', 'Nefes düzenli', 'Uyuyor', 'Uyandı, tepki veriyor', 'Kustu', 'Ateşi var', 'Acil ilaç verildi', 'Doktor / 112 arandı', 'Yeni nöbet'];
+function startPost(t0, how) {
+  st.post = {start: t0, sent: [], notes: [], how};
+  st.pausedUntil = Date.now() + POST_PAUSE_MIN * 60000;
+  $('#post').hidden = false;
+  $('#pChips').innerHTML = POST_NOTES.map((n, i) => `<button type="button" class="chip" data-note="${i}">${n}</button>`).join('');
+  renderPostLog();
+  logEvent(`Nöbet sonrası takip başladı (${how})`);
+}
+function postTick(now) {
+  const p = st.post, min = (now - p.start) / 60000;
+  for (const m of POST_CHECKS) {
+    if (min >= m && !p.sent.includes(m)) {
+      p.sent.push(m);
+      if (m === 5) notify('Nöbet sonrası 5. dk', 'Yan yatırılmış mı? Nefes alışını ve rengini kontrol edin.', 4, ['stopwatch']);
+      else if (m < 60) notify(`Nöbet sonrası ${m}. dk kontrol`, 'Nefes, renk ve tepkisini kontrol edin. Notunuzu Samsung\'daki takip ekranına ekleyin.', 4, ['stopwatch']);
+      else { notify('1 saatlik takip tamamlandı', "Gözlemlerinizi Doz Defteri'ndeki nöbet kaydına not edin.", 3, ['white_check_mark']); logEvent('1 saatlik takip tamamlandı'); }
+    }
+  }
+}
+function postNote(text) {
+  const p = st.post; if (!p) return;
+  const now = Date.now();
+  p.notes.push({t: now, text});
+  logEvent('Takip notu: ' + text);
+  if (text === 'Yeni nöbet') {
+    p.start = now; p.sent = [];
+    notify('Yeni nöbet kaydedildi', '1 saatlik takip baştan başladı.', 5, ['rotating_light']);
+  }
+  renderPostLog();
+}
+function renderPostLog() {
+  const box = $('#pLog'); box.textContent = '';
+  const p = st.post; if (!p) return;
+  p.notes.slice().reverse().forEach(n => {
+    const d = document.createElement('div');
+    const tm = document.createElement('time'); tm.textContent = `${hm(new Date(n.t))} · ${Math.floor((n.t - p.start) / 60000)}. dk`;
+    const sp = document.createElement('span'); sp.textContent = n.text;
+    d.append(tm, sp); box.append(d);
+  });
+}
+function postText() {
+  const p = st.post; if (!p) return '';
+  const lines = [`Nöbet: ${stamp(p.start)} (${p.how})`];
+  p.notes.forEach(n => lines.push(`${hm(new Date(n.t))} (${Math.floor((n.t - p.start) / 60000)}. dk) ${n.text}`));
+  return lines.join('\n');
+}
+
+/* ---------- güvenlik bekçisi: izleme durursa haber ver ---------- */
+function checkLight() {
+  if (cfg.cam && st.lum != null && st.lum < 18 && !st.warned.dark) { st.warned.dark = true; logEvent('Oda kamera için çok karanlık'); }
+  if (st.lum != null && st.lum >= 25) st.warned.dark = false;
+}
+function onBattery() {
+  const b = st.battery; if (!b || !st.running) return;
+  if (!b.charging && !st.warned.unplug) { st.warned.unplug = true; notify('Gece Bekçisi şarjda değil', `Samsung şarjdan çıktı (%${Math.round(b.level * 100)}). Gece boyunca açık kalması için şarja takın.`, 4, ['battery']); logEvent('Şarjdan çıktı'); }
+  if (b.charging) st.warned.unplug = false;
+  if (!b.charging && b.level < 0.15 && !st.warned.low) { st.warned.low = true; notify('Gece Bekçisi: pil bitiyor', `Pil %${Math.round(b.level * 100)}. Kapanırsa izleme durur.`, 5, ['warning']); }
+  if (b.level >= 0.2) st.warned.low = false;
+  renderWatch(Date.now());
+}
+async function acquireWake() {
+  try { if ('wakeLock' in navigator && document.visibilityState === 'visible') { st.wake = await navigator.wakeLock.request('screen'); } } catch (e) { st.wake = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (!st.running) return;
+  if (document.hidden) {
+    st.hiddenAt = Date.now();
+    beacon('Gece Bekçisi durdu!', "Samsung'da ekran kapandı ya da sayfa arka plana geçti. Şu an izleme yapılmıyor.", 5, ['warning']);
+    logEvent('Sayfa arka plana geçti, izleme durdu');
+  } else {
+    acquireWake();
+    if (st.hiddenAt) notify('Gece Bekçisi yeniden çalışıyor', `${hm(new Date(st.hiddenAt))}–${hm(new Date())} arasında izleme yoktu.`, 3, ['white_check_mark']);
+    logEvent('Sayfa yeniden önde, izleme sürüyor');
+    st.hiddenAt = 0;
+  }
+});
+window.addEventListener('pagehide', () => { if (st.running) beacon('Gece Bekçisi kapandı!', 'Samsung\'daki sayfa kapandı. İzleme yapılmıyor.', 5, ['warning']); });
+window.addEventListener('offline', () => { st.offlineAt = Date.now(); if (st.running) logEvent('İnternet kesildi'); renderWatch(Date.now()); });
+window.addEventListener('online', () => {
+  if (st.running && st.offlineAt) notify('Gece Bekçisi: internet geri geldi', `${hm(new Date(st.offlineAt))}–${hm(new Date())} arasında bildirim gönderilemezdi.`, 4, ['warning']);
+  st.offlineAt = 0; renderWatch(Date.now());
+});
+
+/* ---------- başlat / durdur ---------- */
+async function start() {
+  $('#startErr').hidden = true;
+  if (!window.isSecureContext) return startError('Bu sayfa güvenli (https) bir adresten açılmalı; aksi halde kamera ve mikrofon çalışmaz.');
+  if (!cfg.cam && !cfg.mic && !cfg.shake) return startError('En az bir algılama yöntemi seçin.');
+  try { st.ac = st.ac || new (window.AudioContext || window.webkitAudioContext)(); await st.ac.resume(); } catch (e) {}
+  try { await startMedia(); }
+  catch (e) { return startError('Kamera/mikrofon açılamadı. Chrome izin sorduğunda "İzin ver" deyin. Engellediyseniz adres çubuğundaki kilit simgesinden izni açın.'); }
+  if (cfg.shake) window.addEventListener('devicemotion', onMotion);
+  Object.assign(st, {running: true, startedAt: Date.now(), pausedUntil: 0, alarm: null, lastAlarmEnd: 0, fr: [], frHist: [], snd: [], acc: [], accHist: [], rawM: [], rawS: [], rawA: [], hM: [], hS: [], hA: [], warned: {}, lum: null});
+  prevGray = null;
+  $('#previewBox').hidden = !cfg.cam;
+  $('#mMotion').hidden = !cfg.cam; $('#mSound').hidden = !cfg.mic; $('#mShake').hidden = !cfg.shake;
+  $('#setup').hidden = true; $('#watch').hidden = false; window.scrollTo(0, 0);
+  acquireWake();
+  st.timers.push(setInterval(tick, 1000));
+  const src = [cfg.cam && 'kamera', cfg.mic && 'mikrofon', cfg.shake && 'titreşim'].filter(Boolean).join(', ');
+  notify('Gece Bekçisi başladı', `İzleme ${hm(new Date())} itibarıyla açık (${src}). Bir sorun olursa buraya bildirim gelir.`, 2, ['white_check_mark']);
+  logEvent(`İzleme başladı (${src}, hassasiyet ${cfg.sens}, ${cfg.dur} sn)`);
+  onBattery();
+  renderWatch(Date.now());
+}
+function startError(msg) { const el = $('#startErr'); el.textContent = msg; el.hidden = false; el.style.color = 'var(--bad)'; }
+function stop() {
+  st.running = false;
+  st.timers.forEach(clearInterval); st.timers = [];
+  if (st.stream) st.stream.getTracks().forEach(t => t.stop());
+  st.stream = null; st.an = null;
+  window.removeEventListener('devicemotion', onMotion);
+  endAlarm();
+  try { if (st.wake) st.wake.release(); } catch (e) {}
+  st.wake = null; st.post = null;
+  $('#post').hidden = true; $('#dim').hidden = true;
+  $('#watch').hidden = true; $('#setup').hidden = false;
+  notify('Gece Bekçisi durduruldu', 'İzleme elle kapatıldı.', 3, ['stop_sign']);
+  logEvent('İzleme durduruldu');
+}
+
+/* ---------- ekran ---------- */
+function setMeter(id, lvl, txt, on) {
+  const el = $(id);
+  el.querySelector('i').style.width = Math.min(100, lvl * 50) + '%';
+  el.classList.toggle('on', !!on && lvl > 1);
+  el.classList.toggle('hot', lvl > 1.6);
+  el.querySelector('em').textContent = txt;
+}
+function renderWatch(now) {
+  if (!st.running) return;
+  const elapsed = (now - st.startedAt) / 1000;
+  const status = $('#status');
+  const L = st.last;
+  let title, sub, state;
+  if (elapsed < WARMUP) { state = 'warmup'; title = 'Ortam öğreniliyor'; sub = `${Math.ceil(WARMUP - elapsed)} sn sonra izleme başlar. Odanın sakin olduğundan emin olun.`; }
+  else if (st.pausedUntil) { state = 'paused'; title = 'Algılama duraklatıldı'; sub = `Kendiliğinden açılma saati: ${hm(new Date(st.pausedUntil))}`; }
+  else { state = 'on'; title = 'İzleniyor'; sub = `Başlangıç: ${hm(new Date(st.startedAt))}`; }
+  status.dataset.state = state;
+  $('#stTitle').textContent = title; $('#stSub').textContent = sub;
+  $('#dimTxt').textContent = `${title} · ${hm(new Date())} · açmak için dokunun`;
+
+  setMeter('#mMotion', L.m || 0, (L.m || 0) > 1 ? (L.mR > 0.35 ? 'ritmik hareket' : 'hareket') : 'sakin', true);
+  setMeter('#mSound', L.s || 0, (L.s || 0) > 1 ? 'ses var' : 'sakin', true);
+  setMeter('#mShake', L.a || 0, (L.a || 0) > 1 ? (L.aR > 0.35 ? 'ritmik sarsılma' : 'sarsılma') : 'sakin', true);
+  const risk = (L.risk || 0) / 0.8;
+  const r = $('#mRisk');
+  r.querySelector('i').style.width = Math.min(100, risk * 100) + '%';
+  r.classList.toggle('on', risk > 0.4); r.classList.toggle('hot', risk >= 1);
+  r.querySelector('em').textContent = `%${Math.min(100, Math.round(risk * 100))}`;
+
+  const w = [];
+  if (st.offlineAt) w.push(['bad', "İnternet yok. Alarm olursa iPhone'lara bildirim gidemez; yalnızca siren çalar."]);
+  if (st.battery && !st.battery.charging) w.push(['warn', `Telefon şarjda değil (%${Math.round(st.battery.level * 100)}). Gece boyunca şarja takılı kalsın.`]);
+  if (cfg.cam && st.lum != null && st.lum < 18) w.push(['warn', 'Oda kamera için çok karanlık. Loş bir gece lambası açın ya da mikrofona güvenin.']);
+  if (!st.wake && 'wakeLock' in navigator) w.push(['warn', 'Ekranın açık kalması garanti edilemedi. Samsung ayarlarından ekran zaman aşımını en uzuna alın.']);
+  if (!('wakeLock' in navigator)) w.push(['warn', 'Bu tarayıcı ekranı açık tutamıyor. Samsung ayarlarından ekran zaman aşımını en uzuna alın.']);
+  if (queue.length) w.push(['bad', `${queue.length} bildirim gönderilemedi, tekrar deneniyor.`]);
+  const wb = $('#warns'); wb.textContent = '';
+  w.forEach(([k, t]) => { const d = document.createElement('div'); d.className = 'warn' + (k === 'bad' ? ' bad' : ''); d.textContent = t; wb.append(d); });
+
+  $('#pauseBtn').textContent = st.pausedUntil ? 'Algılamayı şimdi aç' : '10 dk duraklat';
+  if (st.alarm) $('#alClock').textContent = mmss((now - st.alarm.at) / 1000);
+  if (st.post) {
+    const sec = (now - st.post.start) / 1000;
+    $('#pClock').textContent = mmss(Math.min(sec, 3600));
+    const next = POST_CHECKS.find(m => !st.post.sent.includes(m));
+    $('#pNext').textContent = next ? `Sonraki kontrol hatırlatması ${next}. dakikada iki iPhone'a gider.` : '1 saatlik takip tamamlandı. Notları kopyalayıp Doz Defteri\'ne ekleyebilirsiniz.';
+    $('#pDet').textContent = st.pausedUntil ? `Yanındasınız diye algılama kısa süre kapalı (açılma saati: ${hm(new Date(st.pausedUntil))}). Sonra yeni bir nöbet için yine izler.` : 'Algılama açık: yeni bir nöbette yine alarm verir.';
+    $('#pDetBtn').hidden = !st.pausedUntil;
+  }
+}
+
+/* ---------- kurulum ekranı ---------- */
+function bindSetup() {
+  $('#topic').textContent = cfg.topic;
+  $('#server').value = cfg.server;
+  $('#click').value = cfg.click;
+  [['#optCam', 'cam'], ['#optMic', 'mic'], ['#optShake', 'shake'], ['#optSiren', 'siren'], ['#optFront', 'front']].forEach(([id, k]) => {
+    const el = $(id); el.checked = !!cfg[k];
+    el.addEventListener('change', () => { cfg[k] = el.checked; save('gb.cfg', cfg); });
+  });
+  const sens = $('#sens-' + cfg.sens); if (sens) sens.checked = true;
+  const dur = $('#dur-' + cfg.dur); if (dur) dur.checked = true;
+  document.querySelectorAll('input[name="sens"]').forEach(el => el.addEventListener('change', () => { cfg.sens = +el.value; save('gb.cfg', cfg); }));
+  document.querySelectorAll('input[name="dur"]').forEach(el => el.addEventListener('change', () => { cfg.dur = +el.value; save('gb.cfg', cfg); }));
+  $('#server').addEventListener('change', e => { cfg.server = e.target.value.trim() || 'https://ntfy.sh'; save('gb.cfg', cfg); });
+  $('#click').addEventListener('change', e => { cfg.click = e.target.value.trim(); save('gb.cfg', cfg); });
+  $('#copyTopic').addEventListener('click', () => copyText(cfg.topic));
+  $('#newTopic').addEventListener('click', () => { cfg.topic = genTopic(); save('gb.cfg', cfg); $('#topic').textContent = cfg.topic; toast("Yeni konu adı üretildi. iPhone'larda da yeniden abone olun."); });
+  $('#testBtn').addEventListener('click', async () => {
+    const ok = await notify('Gece Bekçisi deneme bildirimi', `Bu bildirim geldiyse kurulum tamam (${hm(new Date())}).`, 4, ['bell']);
+    $('#testRes').textContent = ok ? `Gönderildi (${hm(new Date())}). İki iPhone'a da geldi mi bakın.` : 'Gönderilemedi. Samsung internete bağlı mı?';
+    logEvent(ok ? 'Deneme bildirimi gönderildi' : 'Deneme bildirimi gönderilemedi');
+  });
+  $('#copyLog').addEventListener('click', () => copyText(events.map(e => `${stamp(e.t)}  ${e.text}`).join('\n')));
+  $('#startBtn').addEventListener('click', start);
+  $('#stopBtn').addEventListener('click', stop);
+  $('#dimBtn').addEventListener('click', () => { $('#dim').hidden = false; });
+  $('#dim').addEventListener('click', () => { $('#dim').hidden = true; });
+  $('#pauseBtn').addEventListener('click', () => {
+    if (st.pausedUntil) { st.pausedUntil = 0; logEvent('Algılama elle açıldı'); }
+    else { st.pausedUntil = Date.now() + 10 * 60000; logEvent('Algılama 10 dk duraklatıldı'); notify('Gece Bekçisi duraklatıldı', `Algılama kapalı. Açılma saati: ${hm(new Date(st.pausedUntil))}.`, 2, ['pause_button']); }
+    renderWatch(Date.now());
+  });
+  $('#manualBtn').addEventListener('click', () => {
+    if (st.post) { postNote('Yeni nöbet'); return; }
+    startPost(Date.now(), 'elle bildirildi');
+    notify(`Nöbet oldu (${hm(new Date())})`, "Nöbet Samsung'dan bildirildi, 1 saatlik takip başladı.", 5, ['rotating_light']);
+    renderWatch(Date.now());
+  });
+  $('#alYes').addEventListener('click', () => {
+    const at = st.alarm ? st.alarm.at : Date.now();
+    endAlarm();
+    if (st.post) postNote('Yeni nöbet');
+    else startPost(at, 'Gece Bekçisi alarmı');
+    notify('Alarm onaylandı', "Biri çocuğun yanında. 1 saatlik nöbet sonrası takip başladı.", 4, ['white_check_mark']);
+    renderWatch(Date.now());
+  });
+  $('#alNo').addEventListener('click', () => {
+    endAlarm();
+    st.pausedUntil = Date.now() + 3 * 60000;
+    logEvent('Yanlış alarm olarak işaretlendi');
+    notify('Yanlış alarm', "Alarm Samsung'da yanlış alarm olarak işaretlendi.", 3, ['ok_hand']);
+    renderWatch(Date.now());
+  });
+  $('#pChips').addEventListener('click', e => { const b = e.target.closest('[data-note]'); if (b) postNote(POST_NOTES[+b.dataset.note]); });
+  $('#pDetBtn').addEventListener('click', () => { st.pausedUntil = 0; logEvent('Algılama elle açıldı'); renderWatch(Date.now()); });
+  $('#pCopy').addEventListener('click', () => copyText(postText()));
+  $('#pEnd').addEventListener('click', () => { logEvent('Nöbet sonrası takip bitirildi'); st.post = null; $('#post').hidden = true; });
+  if (navigator.getBattery) navigator.getBattery().then(b => { st.battery = b; b.addEventListener('chargingchange', onBattery); b.addEventListener('levelchange', onBattery); }, () => {});
+  renderLog();
+}
+
+if (TEST) window.__gb = {st, cfg, force(kind, secs) { st.forced = {kind, until: Date.now() + secs * 1000}; }};
+bindSetup();
+})();
+</script>
+</body>
+</html>

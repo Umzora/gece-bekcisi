@@ -10,3 +10,10 @@ Diğer önlemlerin yerine değil, yanında kullanılır.
 
 Görüntü ve ses telefondan dışarı çıkmaz; dışarıya yalnızca kısa bildirim metni gider.
 Sayfa sunucu kullanmaz, ayarlar telefonun kendi hafızasında durur.
+
+## Alarm sesi
+
+`ses/gecealarm.mp3` — 520 Hz kare dalga, T-3 yangın alarmı ritmi, 28 sn, 329 KB.
+Pushover'ın kendi sesleri kısa uyarı tonlarıdır ve uykudan uyandırmaz.
+pushover.net → Your Custom Sounds → Upload a Sound ile yüklenir, adı `gecealarm`.
+Sınırlar: MP3, en çok 500 KB, iOS için en çok 30 sn.

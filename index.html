@@ -152,7 +152,8 @@ details .field + .field{margin-top:10px}
     <label class="field"><span class="lbl">User Key · iki ayrı hesap kullanıyorsanız virgülle ayırın</span><input class="in" id="poUser" type="text" autocomplete="off" spellcheck="false" placeholder="uQiRzpo4DXghDmr9QzzfQu27cmVRsG"></label>
     <label class="field"><span class="lbl">Alarm sesi</span>
       <select class="in" id="poSound">
-        <option value="siren">Siren (en uyandırıcı)</option>
+        <option value="gecealarm">Gece Bekçisi alarmı · 28 sn (önce yükleyin)</option>
+        <option value="siren">Siren (Pushover'ın kendi kısa sesi)</option>
         <option value="">Pushover varsayılan sesi</option>
         <option value="spacealarm">Uzay alarmı</option>
         <option value="alien">Alien alarmı</option>
@@ -162,6 +163,8 @@ details .field + .field{margin-top:10px}
         <option value="climb">Yükselen</option>
         <option value="bugle">Boru sesi</option>
       </select></label>
+    <label class="field"><span class="lbl">Başka bir özel ses yüklediyseniz adı (boşsa yukarıdaki kullanılır)</span><input class="in" id="poSoundOzel" type="text" autocomplete="off" spellcheck="false" placeholder="gecealarm"></label>
+    <p class="small muted">Pushover'ın kendi sesleri kısa uyarı tonlarıdır, uykudan uyandırmaz. <b>gecealarm</b> dosyasını pushover.net → <i>Your Custom Sounds → Upload a Sound</i> ile yükleyin ve adını birebir <b>gecealarm</b> yazın. Ses adı yanlış olursa alarm yine gider, sadece varsayılan sesle çalar.</p>
     <button type="button" class="btn btn-primary btn-big" id="poTestBtn">Alarm denemesi · sessizde çalmalı</button>
     <p class="small muted" id="poTestRes">Bu deneme gerçek alarmla <b>aynı yolu</b> kullanır. iPhone'u <b>sessize alıp kilitleyin</b>, sonra bu düğmeye basın. Onaylamazsanız 30 saniyede bir tekrar çalar ve 5 dakika sonra kendiliğinden durur.</p>
   </section>
@@ -321,7 +324,7 @@ function genTopic() {
   return 'gece-' + Array.from(a, b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
 }
 const cfg = load('gb.cfg', {topic: '', server: 'https://ntfy.sh', click: '', cam: true, mic: true, shake: false, siren: true, front: false, sens: 3, dur: 12,
-  po_token: '', po_user: '', po_sound: 'siren', ntfy_on: true});
+  po_token: '', po_user: '', po_sound: 'siren', po_sound_ozel: '', ntfy_on: true});
 if (!cfg.topic) { cfg.topic = genTopic(); save('gb.cfg', cfg); }
 
 let events = [];
@@ -368,7 +371,9 @@ function poAktif() { return !!(cfg.po_token && cfg.po_user); }
 function ntfyAktif() { return !!cfg.ntfy_on; }
 // bizim 2..5 ölçeğimiz -> Pushover: 5 acil (onay ister, sunucu tekrarlar), 4 yüksek, 3 normal
 function poPrio(p) { return p >= 5 ? 2 : p >= 4 ? 1 : p >= 3 ? 0 : -1; }
-function poBody(title, message, priority, expire) {
+function alarmSesi() { return (cfg.po_sound_ozel || '').trim() || cfg.po_sound; }
+// sesli=true: acil olmayan ama yine de uyandırması gereken haberler (izleme durdu gibi)
+function poBody(title, message, priority, expire, sesli) {
   const b = new URLSearchParams();
   b.set('token', cfg.po_token); b.set('user', cfg.po_user);
   b.set('title', title); b.set('message', message);
@@ -377,14 +382,26 @@ function poBody(title, message, priority, expire) {
   if (pr === 2) {
     // retry en az 30 sn olabilir; expire sonunda kendiliğinden durur, sonsuza kadar çalmaz
     b.set('retry', '30'); b.set('expire', String(expire || 1800)); b.set('tags', PO_TAG);
-    if (cfg.po_sound) b.set('sound', cfg.po_sound);
   }
+  const ses = alarmSesi();
+  if ((pr === 2 || sesli) && ses) b.set('sound', ses);
   if (cfg.click) { b.set('url', cfg.click); b.set('url_title', 'Aç'); }
   return b;
 }
 async function poPost(body) {
-  try { const res = await fetch(PO_URL, {method: 'POST', body, keepalive: true}); return res.ok; }
-  catch (e) { return false; }
+  try {
+    const res = await fetch(PO_URL, {method: 'POST', body, keepalive: true});
+    if (res.ok) return true;
+    // Ses adı yanlışsa (yüklenmemiş/yanlış yazılmış özel ses) Pushover mesajın TAMAMINI
+    // reddeder. Alarmın, sırf sesi yüzünden hiç gitmemesi kabul edilemez: sesi bırakıp
+    // bir kez daha deniyoruz. Varsayılan sesle de olsa alarm gitsin.
+    if (body.get('sound')) {
+      body.delete('sound');
+      const res2 = await fetch(PO_URL, {method: 'POST', body, keepalive: true});
+      if (res2.ok) { logEvent('Özel ses reddedildi; alarm varsayılan sesle gönderildi'); return true; }
+    }
+    return false;
+  } catch (e) { return false; }
 }
 async function poCancel() {
   // Samsung'da alarm onaylanınca iPhone'ların çalmasını da susturur.
@@ -426,7 +443,7 @@ async function notify(title, message, priority, tags, opt) {
 function beacon(title, message, priority, tags) {
   // Sayfa kapanırken son söz: cevabı okuyamayız, sadece yola koyarız.
   try { if (ntfyAktif()) navigator.sendBeacon(ntfyUrl(), new Blob([ntfyBody(title, message, priority, tags)], {type: 'text/plain'})); } catch (e) {}
-  try { if (poAktif()) navigator.sendBeacon(PO_URL, new Blob([poBody(title, message, priority).toString()], {type: 'application/x-www-form-urlencoded'})); } catch (e) {}
+  try { if (poAktif()) navigator.sendBeacon(PO_URL, new Blob([poBody(title, message, priority, 0, true).toString()], {type: 'application/x-www-form-urlencoded'})); } catch (e) {}
 }
 async function flushQueue(now) {
   for (const q of queue.slice()) {
@@ -831,15 +848,18 @@ function bindSetup() {
   $('#poToken').value = cfg.po_token;
   $('#poUser').value = cfg.po_user;
   $('#poSound').value = cfg.po_sound;
+  $('#poSoundOzel').value = cfg.po_sound_ozel;
   $('#optNtfy').checked = !!cfg.ntfy_on;
   $('#poToken').addEventListener('change', e => { cfg.po_token = e.target.value.trim(); save('gb.cfg', cfg); });
   $('#poUser').addEventListener('change', e => { cfg.po_user = e.target.value.trim().replace(/\s+/g, ''); save('gb.cfg', cfg); });
   $('#poSound').addEventListener('change', e => { cfg.po_sound = e.target.value; save('gb.cfg', cfg); });
+  $('#poSoundOzel').addEventListener('change', e => { cfg.po_sound_ozel = e.target.value.trim(); save('gb.cfg', cfg); });
   $('#optNtfy').addEventListener('change', e => { cfg.ntfy_on = e.target.checked; save('gb.cfg', cfg); });
   $('#poTestBtn').addEventListener('click', async () => {
     cfg.po_token = $('#poToken').value.trim();
     cfg.po_user = $('#poUser').value.trim().replace(/\s+/g, '');
     cfg.po_sound = $('#poSound').value;
+    cfg.po_sound_ozel = $('#poSoundOzel').value.trim();
     save('gb.cfg', cfg);
     const res = $('#poTestRes');
     if (!poAktif()) { res.textContent = 'Önce API Token ve User Key alanlarını doldurun.'; res.style.color = 'var(--bad)'; return; }
@@ -908,7 +928,7 @@ function bindSetup() {
   renderLog();
 }
 
-if (TEST) window.__gb = {st, cfg, force(kind, secs) { st.forced = {kind, until: Date.now() + secs * 1000}; }, notify, poBody, poPrio, poAktif, queue};
+if (TEST) window.__gb = {st, cfg, force(kind, secs) { st.forced = {kind, until: Date.now() + secs * 1000}; }, notify, poBody, poPrio, poAktif, queue, alarmSesi};
 bindSetup();
 })();
 </script>

@@ -140,7 +140,35 @@ details .field + .field{margin-top:10px}
   <p class="disclaimer">Tıbbi cihaz değildir. Her nöbeti yakalayamaz, boşuna da alarm verebilir. Diğer önlemlerin yerine değil, yanında kullanın.</p>
 
   <section class="card">
-    <h2>1 · iPhone'lara bildirim</h2>
+    <h2>1 · iPhone'u gece uyandıracak kanal · Pushover</h2>
+    <p class="small">iPhone'da sessiz moddayken ses çıkarmak Apple'ın ayrı bir iznini gerektirir. ntfy uygulamasında bu izin <b>yok</b> — bu yüzden sessizdeyken yalnızca kısa titriyor, zil sesini değiştiren bir ayarı da bu nedenle bulamadınız. Pushover'da bu izin var: <b>sessiz anahtarını ve Rahatsız Etmeyin'i aşar</b>, sesi uygulamanın içinden ayarlanır ve acil alarmı <b>onaylanana kadar Pushover'ın sunucusu tekrarlar</b> — Samsung kapansa bile.</p>
+    <ol>
+      <li>İki iPhone'a da App Store'dan <b>Pushover</b> uygulamasını kurun. <b>30 gün ücretsiz deneme</b> var, yani bu gece hiç ödeme yapmadan test edebilirsiniz.</li>
+      <li><b>pushover.net</b> adresinde bir hesap açın ve <b>iki iPhone'u da aynı hesaba</b> giriş yapın. Panoda görünen <b>Your User Key</b>'i aşağıya yazın.</li>
+      <li>Aynı sayfadan <b>Create an Application</b> ile bir uygulama oluşturun (adı "Gece Bekçisi" olabilir); çıkan <b>API Token</b>'ı aşağıya yazın.</li>
+      <li><b>En önemli adım:</b> her iki iPhone'daki Pushover uygulamasında <b>Settings → Critical Alerts</b>'i açın, iOS izin sorusuna <b>İzin Ver</b> deyin ve oradaki ses seviyesini sonuna kadar açın. Bu açılmazsa sessiz modda yine ses çıkmaz.</li>
+    </ol>
+    <label class="field"><span class="lbl">API Token (uygulama)</span><input class="in" id="poToken" type="text" autocomplete="off" spellcheck="false" placeholder="azGDORePK8gMaC0QOYAMyEEuzJnyUi"></label>
+    <label class="field"><span class="lbl">User Key · iki ayrı hesap kullanıyorsanız virgülle ayırın</span><input class="in" id="poUser" type="text" autocomplete="off" spellcheck="false" placeholder="uQiRzpo4DXghDmr9QzzfQu27cmVRsG"></label>
+    <label class="field"><span class="lbl">Alarm sesi</span>
+      <select class="in" id="poSound">
+        <option value="siren">Siren (en uyandırıcı)</option>
+        <option value="">Pushover varsayılan sesi</option>
+        <option value="spacealarm">Uzay alarmı</option>
+        <option value="alien">Alien alarmı</option>
+        <option value="persistent">Israrcı bip</option>
+        <option value="echo">Yankı</option>
+        <option value="updown">İnip çıkan</option>
+        <option value="climb">Yükselen</option>
+        <option value="bugle">Boru sesi</option>
+      </select></label>
+    <button type="button" class="btn btn-primary btn-big" id="poTestBtn">Alarm denemesi · sessizde çalmalı</button>
+    <p class="small muted" id="poTestRes">Bu deneme gerçek alarmla <b>aynı yolu</b> kullanır. iPhone'u <b>sessize alıp kilitleyin</b>, sonra bu düğmeye basın. Onaylamazsanız 30 saniyede bir tekrar çalar ve 5 dakika sonra kendiliğinden durur.</p>
+  </section>
+
+  <section class="card">
+    <h2>2 · Yedek kanal · ntfy</h2>
+    <label class="switch"><span class="txt"><b>ntfy'ı da kullan</b><small>Ücretsiz ikinci yol. Sessizi aşamaz ama Pushover'dan bağımsızdır; biri çökerse diğeri haber verir.</small></span><input type="checkbox" id="optNtfy"><span class="track"></span></label>
     <ol>
       <li>Anne ve babanın iPhone'una App Store'dan <b>ntfy</b> uygulamasını kurun.</li>
       <li>Uygulamada <b>+</b>'ya dokunun, aşağıdaki konu adını aynen yazın, <b>Subscribe</b> deyin.</li>
@@ -158,7 +186,7 @@ details .field + .field{margin-top:10px}
   </section>
 
   <section class="card">
-    <h2>2 · Neyi takip etsin?</h2>
+    <h2>3 · Neyi takip etsin?</h2>
     <div>
       <label class="switch"><span class="txt"><b>Kamera · hareket</b><small>Uzun süren, özellikle ritmik hareketi fark eder. Loş ışık gerekir.</small></span><input type="checkbox" id="optCam"><span class="track"></span></label>
       <label class="switch"><span class="txt"><b>Mikrofon · ses</b><small>Uzun süren ses, inleme, hırıltı. Karanlıkta da çalışır.</small></span><input type="checkbox" id="optMic"><span class="track"></span></label>
@@ -189,7 +217,7 @@ details .field + .field{margin-top:10px}
   </section>
 
   <section class="card">
-    <h2>3 · Telefonu yerleştirin</h2>
+    <h2>4 · Telefonu yerleştirin</h2>
     <ul>
       <li>Yatağın tamamını görecek şekilde, 1–2 metre uzağa, sabit bir yere koyun.</li>
       <li>Şarja takılı kalsın. Yastık, yorgan ya da şilte altına koymayın; şarjdayken ısınır.</li>
@@ -292,7 +320,8 @@ function genTopic() {
   const a = new Uint8Array(10); crypto.getRandomValues(a);
   return 'gece-' + Array.from(a, b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
 }
-const cfg = load('gb.cfg', {topic: '', server: 'https://ntfy.sh', click: '', cam: true, mic: true, shake: false, siren: true, front: false, sens: 3, dur: 12});
+const cfg = load('gb.cfg', {topic: '', server: 'https://ntfy.sh', click: '', cam: true, mic: true, shake: false, siren: true, front: false, sens: 3, dur: 12,
+  po_token: '', po_user: '', po_sound: 'siren', ntfy_on: true});
 if (!cfg.topic) { cfg.topic = genTopic(); save('gb.cfg', cfg); }
 
 let events = [];
@@ -326,8 +355,43 @@ async function copyText(txt) {
   }
 }
 
-/* ---------- iPhone'lara bildirim (ntfy) ---------- */
+/* ---------- iPhone'lara bildirim: iki ayrı kanal ---------- */
+// Pushover, Apple'ın ayrıca izin verdiği "Critical Alert" hakkına sahip: iPhone SESSİZDEYKEN
+// ve Rahatsız Etmeyin açıkken de ses çıkarır, ses seviyesi uygulamanın kendi içinden ayarlanır.
+// Ayrıca acil bildirimi onaylanana kadar PUSHOVER'IN SUNUCUSU tekrarlar; yani Samsung kapanır,
+// çöker ya da internetten düşerse alarm yine sürer.
+// ntfy sessizi aşamıyor (uygulamada bu izin yok), bu yüzden artık ikinci/yedek kanal.
 const queue = [];
+const PO_URL = 'https://api.pushover.net/1/messages.json';
+const PO_TAG = 'gb-alarm';
+function poAktif() { return !!(cfg.po_token && cfg.po_user); }
+function ntfyAktif() { return !!cfg.ntfy_on; }
+// bizim 2..5 ölçeğimiz -> Pushover: 5 acil (onay ister, sunucu tekrarlar), 4 yüksek, 3 normal
+function poPrio(p) { return p >= 5 ? 2 : p >= 4 ? 1 : p >= 3 ? 0 : -1; }
+function poBody(title, message, priority, expire) {
+  const b = new URLSearchParams();
+  b.set('token', cfg.po_token); b.set('user', cfg.po_user);
+  b.set('title', title); b.set('message', message);
+  const pr = poPrio(priority);
+  b.set('priority', String(pr));
+  if (pr === 2) {
+    // retry en az 30 sn olabilir; expire sonunda kendiliğinden durur, sonsuza kadar çalmaz
+    b.set('retry', '30'); b.set('expire', String(expire || 1800)); b.set('tags', PO_TAG);
+    if (cfg.po_sound) b.set('sound', cfg.po_sound);
+  }
+  if (cfg.click) { b.set('url', cfg.click); b.set('url_title', 'Aç'); }
+  return b;
+}
+async function poPost(body) {
+  try { const res = await fetch(PO_URL, {method: 'POST', body, keepalive: true}); return res.ok; }
+  catch (e) { return false; }
+}
+async function poCancel() {
+  // Samsung'da alarm onaylanınca iPhone'ların çalmasını da susturur.
+  if (!poAktif()) return;
+  try { await fetch('https://api.pushover.net/1/receipts/cancel_by_tag/' + PO_TAG + '.json',
+    {method: 'POST', body: new URLSearchParams({token: cfg.po_token})}); } catch (e) {}
+}
 function ntfyBody(title, message, priority, tags) {
   const b = {topic: cfg.topic, title, message, priority: priority || 3, tags: tags || []};
   if (cfg.click) b.click = cfg.click;
@@ -344,21 +408,31 @@ async function postRaw(json) {
     return res.ok;
   } catch (e) { return false; }
 }
-async function notify(title, message, priority, tags) {
-  const json = ntfyBody(title, message, priority, tags);
-  const ok = await postRaw(json);
-  st.lastSend = {t: Date.now(), ok};
-  if (!ok && (priority || 3) >= 4) queue.push({json, tries: 1, next: Date.now() + 20000});
-  return ok;
+// Açık olan her kanala birlikte gönderir. opt.only ile tek kanala sınırlanır.
+async function notify(title, message, priority, tags, opt) {
+  const o = opt || {};
+  const kanallar = [];
+  if (poAktif() && o.only !== 'ntfy') kanallar.push({ad: 'Pushover', gonder: () => poPost(poBody(title, message, priority, o.expire))});
+  if (ntfyAktif() && o.only !== 'pushover') kanallar.push({ad: 'ntfy', gonder: () => postRaw(ntfyBody(title, message, priority, tags))});
+  if (!kanallar.length) { st.lastSend = {t: Date.now(), ok: false, kanalYok: true}; return false; }
+  const sonuc = await Promise.all(kanallar.map(async k => ({ad: k.ad, ok: await k.gonder(), gonder: k.gonder})));
+  const giden = sonuc.filter(r => r.ok).map(r => r.ad);
+  const gitmeyen = sonuc.filter(r => !r.ok);
+  st.lastSend = {t: Date.now(), ok: giden.length > 0, giden, gitmeyen: gitmeyen.map(r => r.ad)};
+  if ((priority || 3) >= 4) gitmeyen.forEach(r => queue.push({ad: r.ad, gonder: r.gonder, tries: 1, next: Date.now() + 20000}));
+  if (gitmeyen.length) logEvent('Bildirim gönderilemedi: ' + gitmeyen.map(r => r.ad).join(', '));
+  return giden.length > 0;
 }
 function beacon(title, message, priority, tags) {
-  try { navigator.sendBeacon(ntfyUrl(), new Blob([ntfyBody(title, message, priority, tags)], {type: 'text/plain'})); } catch (e) {}
+  // Sayfa kapanırken son söz: cevabı okuyamayız, sadece yola koyarız.
+  try { if (ntfyAktif()) navigator.sendBeacon(ntfyUrl(), new Blob([ntfyBody(title, message, priority, tags)], {type: 'text/plain'})); } catch (e) {}
+  try { if (poAktif()) navigator.sendBeacon(PO_URL, new Blob([poBody(title, message, priority).toString()], {type: 'application/x-www-form-urlencoded'})); } catch (e) {}
 }
 async function flushQueue(now) {
   for (const q of queue.slice()) {
     if (q.next > now) continue;
-    if (await postRaw(q.json)) queue.splice(queue.indexOf(q), 1);
-    else if (++q.tries > 6) queue.splice(queue.indexOf(q), 1);
+    if (await q.gonder()) queue.splice(queue.indexOf(q), 1);
+    else if (++q.tries > 6) { queue.splice(queue.indexOf(q), 1); logEvent(q.ad + ' bildirimi 6 denemede gönderilemedi'); }
     else q.next = now + 20000;
   }
 }
@@ -531,9 +605,11 @@ function tick() {
   const elapsed = (now - st.startedAt) / 1000;
   const armed = elapsed >= WARMUP && !st.pausedUntil && !st.alarm && now - st.lastAlarmEnd > 30000;
   if (armed && st.last.risk >= 0.8) triggerAlarm();
-  if (st.alarm && now - st.alarm.lastPush >= REPEAT_MS && st.alarm.pushes < REPEAT_MAX) {
+  // Pushover'da tekrarı onun sunucusu yürütüyor (Samsung ölse bile sürer),
+  // bu döngü yalnızca ntfy kanalını dürter.
+  if (st.alarm && ntfyAktif() && now - st.alarm.lastPush >= REPEAT_MS && st.alarm.pushes < REPEAT_MAX) {
     st.alarm.pushes++; st.alarm.lastPush = now;
-    notify('Alarm sürüyor!', `Gece Bekçisi alarmı ${mmss((now - st.alarm.at) / 1000)} dakikadır onaylanmadı. Çocuğun yanına gidin.`, 5, ['rotating_light']);
+    notify('Alarm sürüyor!', `Gece Bekçisi alarmı ${mmss((now - st.alarm.at) / 1000)} dakikadır onaylanmadı. Çocuğun yanına gidin.`, 5, ['rotating_light'], {only: 'ntfy'});
   }
   if (st.post) postTick(now);
   flushQueue(now);
@@ -545,7 +621,9 @@ function triggerAlarm() {
   const now = Date.now();
   st.alarm = {at: now, lastPush: now, pushes: 1, reason: alarmReason()};
   $('#alWhy').textContent = 'Algılanan: ' + st.alarm.reason + '.';
-  $('#alSent').textContent = "iPhone'lara acil bildirim gönderildi. Onaylanana kadar her 45 saniyede tekrar gönderilir.";
+  $('#alSent').textContent = poAktif()
+    ? "iPhone'lara acil bildirim gönderildi. Onaylanana kadar Pushover 30 saniyede bir tekrar çalar; aşağıdaki düğmeye basınca susar."
+    : "iPhone'lara bildirim gönderildi. Pushover kurulmadığı için iPhone sessizdeyse ses çıkmaz, yalnızca titrer.";
   $('#alarm').hidden = false; $('#dim').hidden = true;
   startSiren();
   const again = st.post ? 'Takip sırasında yeni nöbet olabilir! ' : '';
@@ -553,7 +631,7 @@ function triggerAlarm() {
   logEvent('ALARM: ' + st.alarm.reason);
   renderWatch(now);
 }
-function endAlarm() { stopSiren(); $('#alarm').hidden = true; st.alarm = null; st.lastAlarmEnd = Date.now(); }
+function endAlarm() { stopSiren(); poCancel(); $('#alarm').hidden = true; st.alarm = null; st.lastAlarmEnd = Date.now(); }
 
 function startSiren() {
   if (!cfg.siren || !st.ac || st.siren) return;
@@ -638,7 +716,7 @@ document.addEventListener('visibilitychange', () => {
   if (!st.running) return;
   if (document.hidden) {
     st.hiddenAt = Date.now();
-    beacon('Gece Bekçisi durdu!', "Samsung'da ekran kapandı ya da sayfa arka plana geçti. Şu an izleme yapılmıyor.", 5, ['warning']);
+    beacon('Gece Bekçisi durdu!', "Samsung'da ekran kapandı ya da sayfa arka plana geçti. Şu an izleme yapılmıyor.", 4, ['warning']);
     logEvent('Sayfa arka plana geçti, izleme durdu');
   } else {
     acquireWake();
@@ -728,6 +806,8 @@ function renderWatch(now) {
   if (cfg.cam && st.lum != null && st.lum < 18) w.push(['warn', 'Oda kamera için çok karanlık. Loş bir gece lambası açın ya da mikrofona güvenin.']);
   if (!st.wake && 'wakeLock' in navigator) w.push(['warn', 'Ekranın açık kalması garanti edilemedi. Samsung ayarlarından ekran zaman aşımını en uzuna alın.']);
   if (!('wakeLock' in navigator)) w.push(['warn', 'Bu tarayıcı ekranı açık tutamıyor. Samsung ayarlarından ekran zaman aşımını en uzuna alın.']);
+  if (!poAktif()) w.push(['bad', "Pushover kurulmadı: iPhone sessizdeyken alarm SES ÇIKARMAZ, yalnızca kısa titrer."]);
+  if (!poAktif() && !ntfyAktif()) w.push(['bad', "Hiçbir bildirim kanalı açık değil! Alarm iPhone'lara gidemez."]);
   if (queue.length) w.push(['bad', `${queue.length} bildirim gönderilemedi, tekrar deneniyor.`]);
   const wb = $('#warns'); wb.textContent = '';
   w.forEach(([k, t]) => { const d = document.createElement('div'); d.className = 'warn' + (k === 'bad' ? ' bad' : ''); d.textContent = t; wb.append(d); });
@@ -748,6 +828,29 @@ function renderWatch(now) {
 function bindSetup() {
   $('#topic').textContent = cfg.topic;
   $('#server').value = cfg.server;
+  $('#poToken').value = cfg.po_token;
+  $('#poUser').value = cfg.po_user;
+  $('#poSound').value = cfg.po_sound;
+  $('#optNtfy').checked = !!cfg.ntfy_on;
+  $('#poToken').addEventListener('change', e => { cfg.po_token = e.target.value.trim(); save('gb.cfg', cfg); });
+  $('#poUser').addEventListener('change', e => { cfg.po_user = e.target.value.trim().replace(/\s+/g, ''); save('gb.cfg', cfg); });
+  $('#poSound').addEventListener('change', e => { cfg.po_sound = e.target.value; save('gb.cfg', cfg); });
+  $('#optNtfy').addEventListener('change', e => { cfg.ntfy_on = e.target.checked; save('gb.cfg', cfg); });
+  $('#poTestBtn').addEventListener('click', async () => {
+    cfg.po_token = $('#poToken').value.trim();
+    cfg.po_user = $('#poUser').value.trim().replace(/\s+/g, '');
+    cfg.po_sound = $('#poSound').value;
+    save('gb.cfg', cfg);
+    const res = $('#poTestRes');
+    if (!poAktif()) { res.textContent = 'Önce API Token ve User Key alanlarını doldurun.'; res.style.color = 'var(--bad)'; return; }
+    res.textContent = 'Gönderiliyor…'; res.style.color = '';
+    const ok = await notify('ALARM DENEMESİ', 'Gece Bekçisi alarm denemesi. Gerçek alarmda bu bildirim onaylanana kadar tekrarlanır. Pushover uygulamasından onaylayıp durdurabilirsiniz.', 5, ['rotating_light'], {only: 'pushover', expire: 300});
+    res.style.color = ok ? '' : 'var(--bad)';
+    res.textContent = ok
+      ? `Pushover kabul etti (${hm(new Date())}). Şimdi iPhone'lara bakın: sessizdeyken de ses çıkmalı. Çıkmadıysa Pushover ayarlarından Critical Alerts açık mı, ses seviyesi açık mı kontrol edin.`
+      : 'Pushover kabul etmedi. Token ve User Key doğru mu, Samsung internete bağlı mı?';
+    logEvent(ok ? 'Pushover alarm denemesi gönderildi' : 'Pushover alarm denemesi gönderilemedi');
+  });
   $('#click').value = cfg.click;
   [['#optCam', 'cam'], ['#optMic', 'mic'], ['#optShake', 'shake'], ['#optSiren', 'siren'], ['#optFront', 'front']].forEach(([id, k]) => {
     const el = $(id); el.checked = !!cfg[k];
@@ -762,7 +865,7 @@ function bindSetup() {
   $('#copyTopic').addEventListener('click', () => copyText(cfg.topic));
   $('#newTopic').addEventListener('click', () => { cfg.topic = genTopic(); save('gb.cfg', cfg); $('#topic').textContent = cfg.topic; toast("Yeni konu adı üretildi. iPhone'larda da yeniden abone olun."); });
   $('#testBtn').addEventListener('click', async () => {
-    const ok = await notify('Gece Bekçisi deneme bildirimi', `Bu bildirim geldiyse kurulum tamam (${hm(new Date())}).`, 4, ['bell']);
+    const ok = await notify('Gece Bekçisi deneme bildirimi', `Bu bildirim geldiyse ntfy kanalı çalışıyor (${hm(new Date())}).`, 4, ['bell'], {only: 'ntfy'});
     $('#testRes').textContent = ok ? `Gönderildi (${hm(new Date())}). İki iPhone'a da geldi mi bakın.` : 'Gönderilemedi. Samsung internete bağlı mı?';
     logEvent(ok ? 'Deneme bildirimi gönderildi' : 'Deneme bildirimi gönderilemedi');
   });
@@ -805,7 +908,7 @@ function bindSetup() {
   renderLog();
 }
 
-if (TEST) window.__gb = {st, cfg, force(kind, secs) { st.forced = {kind, until: Date.now() + secs * 1000}; }};
+if (TEST) window.__gb = {st, cfg, force(kind, secs) { st.forced = {kind, until: Date.now() + secs * 1000}; }, notify, poBody, poPrio, poAktif, queue};
 bindSetup();
 })();
 </script>

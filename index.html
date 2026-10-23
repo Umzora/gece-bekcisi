@@ -231,7 +231,8 @@ details .field + .field{margin-top:10px}
       <li>Yatağın tamamını görecek şekilde, 1–2 metre uzağa, sabit bir yere koyun.</li>
       <li>Şarja takılı kalsın. Yastık, yorgan ya da şilte altına koymayın; şarjdayken ısınır.</li>
       <li>Kamera karanlıkta göremez. Loş bir gece lambası açık kalsın ya da yalnız mikrofonu kullanın.</li>
-      <li>Bu sayfa açık ve önde kalmalı. Ekran kapanırsa izleme durur; sayfa bunu engellemeye çalışır, durursa size bildirim gönderir.</li>
+      <li><b>Şarjdayken ekran hep açık kalsın:</b> Samsung'da <i>Einstellungen → Telefoninfo → Softwareinformationen</i> altında <i>Buildnummer</i>'a 7 kez dokunun, sonra <i>Einstellungen → Entwickleroptionen → “Aktiv lassen”</i> seçeneğini açın. Bu, tarayıcıdan bağımsız çalışır ve en sağlam çözümdür. Ek olarak <i>Einstellungen → Apps → Chrome → Akku → “Unbeschränkt”</i> yapın ve Enerji tasarrufu modunu kapatın.</li>
+    <li>Bu sayfa açık ve önde kalmalı. Ekran kapanırsa izleme durur; sayfa bunu engellemeye çalışır, durursa size bildirim gönderir.</li>
       <li>Beyaz gürültü / dalga sesi cihazını <b>izlemeyi başlatmadan önce</b> açın. Sayfa ilk 30 saniyede odanın normal sesini öğrenir; cihaz sonradan açılırsa bir kez boşuna alarm verebilir.</li>
       <li>Duvara ya da tavana hareketli ışık yansıtan bir cihaz varsa, izleme ekranında görüntünün üzerine parmağınızla çizip yalnızca yatağı seçin.</li>
       <li>Başlattıktan sonra elinizi kameranın önünde 15 saniye sallayarak alarmı bir kez deneyin.</li>
@@ -696,6 +697,10 @@ function tick() {
   }
   if (st.post) postTick(now);
   flushQueue(now);
+  // kilit alinamadiysa pes etme: ekran kapanmadan once tekrar dene
+  if (!st.wake && document.visibilityState === 'visible' && now - (st.wakeTry || 0) > 15000) {
+    st.wakeTry = now; acquireWake();
+  }
   checkLight();
   renderWatch(now);
 }
@@ -793,7 +798,20 @@ function onBattery() {
   renderWatch(Date.now());
 }
 async function acquireWake() {
-  try { if ('wakeLock' in navigator && document.visibilityState === 'visible') { st.wake = await navigator.wakeLock.request('screen'); } } catch (e) { st.wake = null; }
+  if (st.wake) return;
+  try {
+    if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+      st.wake = await navigator.wakeLock.request('screen');
+      // Android kilidi kendiliğinden geri alabiliyor (pil tasarrufu, sistem kararı).
+      // O anda ekran kapanır ve izleme durur; bu yüzden bırakıldığı an yeniden istiyoruz.
+      st.wake.addEventListener('release', () => {
+        st.wake = null;
+        if (!st.running) return;
+        logEvent('Ekranı açık tutma kilidi sistem tarafından bırakıldı, yeniden alınıyor');
+        acquireWake();
+      });
+    }
+  } catch (e) { st.wake = null; }
 }
 document.addEventListener('visibilitychange', () => {
   if (!st.running) return;
@@ -888,7 +906,7 @@ function renderWatch(now) {
   if (st.offlineAt) w.push(['bad', "İnternet yok. Alarm olursa iPhone'lara bildirim gidemez; yalnızca siren çalar."]);
   if (st.battery && !st.battery.charging) w.push(['warn', `Telefon şarjda değil (%${Math.round(st.battery.level * 100)}). Gece boyunca şarja takılı kalsın.`]);
   if (cfg.cam && st.lum != null && st.lum < 18) w.push(['warn', 'Oda kamera için çok karanlık. Loş bir gece lambası açın ya da mikrofona güvenin.']);
-  if (!st.wake && 'wakeLock' in navigator) w.push(['warn', 'Ekranın açık kalması garanti edilemedi. Samsung ayarlarından ekran zaman aşımını en uzuna alın.']);
+  if (!st.wake && 'wakeLock' in navigator) w.push(['warn', 'Ekranı açık tutma kilidi alınamadı, denemeye devam ediliyor. Samsung ayarlarında Geliştirici seçenekleri → “Aktiv lassen” (şarjdayken ekran açık kalsın) açıksa bu uyarı önemsizdir.']);
   if (!('wakeLock' in navigator)) w.push(['warn', 'Bu tarayıcı ekranı açık tutamıyor. Samsung ayarlarından ekran zaman aşımını en uzuna alın.']);
   if (!poAktif()) w.push(['bad', "Pushover kurulmadı: iPhone sessizdeyken alarm SES ÇIKARMAZ, yalnızca kısa titrer."]);
   if (!poAktif() && !ntfyAktif()) w.push(['bad', "Hiçbir bildirim kanalı açık değil! Alarm iPhone'lara gidemez."]);

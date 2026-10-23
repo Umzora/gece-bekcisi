@@ -21,10 +21,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
-      - name: SDK paketleri
-        run: sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+      # android-actions/setup-android kullanilmiyor: artik var olmayan "tools"
+      # paketini kurmaya calisip patliyor. Runner imajinda SDK zaten kurulu.
+      - name: Android SDK hazirla
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          SDKM=$(ls -d "$SDK"/cmdline-tools/*/bin/sdkmanager | tail -1)
+          echo "sdkmanager: $SDKM"
+          yes | "$SDKM" --licenses > /dev/null 2>&1 || true
+          "$SDKM" "platforms;android-34" "build-tools;34.0.0"
 
       - uses: gradle/actions/setup-gradle@v4
         with:

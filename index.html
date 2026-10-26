@@ -204,6 +204,15 @@ details .field + .field{margin-top:10px}
       <label class="switch"><span class="txt"><b>Ön kamerayı kullan</b><small>Telefonu ekranı yatağa bakacak şekilde koyacaksanız.</small></span><input type="checkbox" id="optFront"><span class="track"></span></label>
     </div>
     <div class="field">
+      <span class="lbl">Karanlık oda · telefonun flaşı</span>
+      <div class="seg" role="radiogroup" aria-label="Flaş">
+        <label><input type="radio" name="torch" id="torch-off" value="off"><span>Kapalı</span></label>
+        <label><input type="radio" name="torch" id="torch-auto" value="auto"><span>Karanlıkta</span></label>
+        <label><input type="radio" name="torch" id="torch-on" value="on"><span>Sürekli</span></label>
+      </div>
+      <p class="small"><b>Karanlıkta:</b> oda kamera için fazla karanlıksa flaş kendiliğinden yanar ve gece boyunca yanık kalır; oda kendi ışığıyla aydınlanırsa söner. <b>Sürekli:</b> izleme boyunca hep yanık. Flaş arka kamerada çalışır, parlaklığı tarayıcıdan ayarlanamaz — çocuğun yüzüne doğrudan gelmeyecek şekilde yerleştirin, gerekirse duvara ya da tavana yöneltip yansıyan ışıkla çalışın.</p>
+    </div>
+    <div class="field">
       <span class="lbl">Hassasiyet</span>
       <div class="seg" role="radiogroup" aria-label="Hassasiyet">
         <label><input type="radio" name="sens" id="sens-1" value="1"><span>1</span></label>
@@ -230,7 +239,8 @@ details .field + .field{margin-top:10px}
     <ul>
       <li>Yatağın tamamını görecek şekilde, 1–2 metre uzağa, sabit bir yere koyun.</li>
       <li>Şarja takılı kalsın. Yastık, yorgan ya da şilte altına koymayın; şarjdayken ısınır.</li>
-      <li>Kamera karanlıkta göremez. Loş bir gece lambası açık kalsın ya da yalnız mikrofonu kullanın.</li>
+      <li>Kamera karanlıkta göremez. Üç seçenek: loş bir gece lambası açık kalsın, <b>“Karanlık oda”</b> ayarıyla telefonun flaşını kullanın, ya da yalnız mikrofona güvenin.</li>
+      <li><b>Flaşı kullanacaksanız:</b> ışık çocuğun yüzüne doğrudan gelmesin — telefonu yatağın ayak tarafına koyun ya da duvara/tavana yöneltip yansıyan ışıkla çalışın. Flaş gece boyunca yanık kalırsa telefon ısınır; şarjdayken yastık, yorgan ve şilte üstünde durmasın.</li>
       <li><b>Şarjdayken ekran hep açık kalsın:</b> Samsung'da <i>Einstellungen → Telefoninfo → Softwareinformationen</i> altında <i>Buildnummer</i>'a 7 kez dokunun, sonra <i>Einstellungen → Entwickleroptionen → “Aktiv lassen”</i> seçeneğini açın. Bu, tarayıcıdan bağımsız çalışır ve en sağlam çözümdür. Ek olarak <i>Einstellungen → Apps → Chrome → Akku → “Unbeschränkt”</i> yapın ve Enerji tasarrufu modunu kapatın.</li>
     <li>Bu sayfa açık ve önde kalmalı. Ekran kapanırsa izleme durur; sayfa bunu engellemeye çalışır, durursa size bildirim gönderir.</li>
       <li>Beyaz gürültü / dalga sesi cihazını <b>izlemeyi başlatmadan önce</b> açın. Sayfa ilk 30 saniyede odanın normal sesini öğrenir; cihaz sonradan açılırsa bir kez boşuna alarm verebilir.</li>
@@ -335,7 +345,7 @@ function genTopic() {
   const a = new Uint8Array(10); crypto.getRandomValues(a);
   return 'gece-' + Array.from(a, b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
 }
-const cfg = load('gb.cfg', {topic: '', server: 'https://ntfy.sh', click: '', cam: true, mic: true, micAlone: true, shake: false, siren: true, front: false, sens: 3, dur: 12, roi: null,
+const cfg = load('gb.cfg', {topic: '', server: 'https://ntfy.sh', click: '', cam: true, mic: true, micAlone: true, shake: false, siren: true, front: false, torch: 'off', sens: 3, dur: 12, roi: null,
   po_token: '', po_user: '', po_sound: 'siren', po_sound_ozel: '', ntfy_on: true});
 if (!cfg.topic) { cfg.topic = genTopic(); save('gb.cfg', cfg); }
 
@@ -473,6 +483,8 @@ const st = {
   timers: [], fr: [], frHist: [], lumSum: 0, lumN: 0, lum: null,
   snd: [], acc: [], accHist: [], grav: null,
   rawM: [], rawS: [], rawA: [], hM: [], hS: [], hA: [],
+  torchCap: null, torchOn: false, torchBase: null, torchSeed: [], torchBusy: false,
+  camBlindUntil: 0, darkFor: 0, brightFor: 0,
   last: {m: 0, s: 0, a: 0, risk: 0, mR: 0, aR: 0},
   warned: {}, hiddenAt: 0, offlineAt: 0, lastSend: null, forced: null
 };
@@ -623,6 +635,12 @@ function evaluateSecond() {
   let mLvl = 0, mOn = false, mR = 0;
   if (cfg.cam && st.fr.length) {
     const mean = avg(st.fr);
+    // Flaş yeni yandı ya da söndü: tüm kare bir anda aydınlanır/kararır ve sensör
+    // gürültüsü değişir. Bu basamak hareket sanılmasın diye kamera kanalı 4 saniye
+    // susar, referansını sıfırdan öğrenir; mikrofon ve titreşim çalışmaya devam eder.
+    if (Date.now() < st.camBlindUntil) {
+      st.fr = []; resetCamBaseline();
+    } else {
     st.frHist.push(...st.fr); trim(st.frHist, 50); st.fr = [];
     if (learn || st.rawM.length < 5) { st.rawM.push(mean); trim(st.rawM, 90); }
     const act = Math.max(0, mean - pct(st.rawM, 0.2));
@@ -632,6 +650,7 @@ function evaluateSecond() {
     // hassasiyet 1'de (az alarm) belirgin bir nöbet eşiğin altında kalabiliyordu.
     const thrM = THR.motion[si] / (mR > 0.45 ? 1.6 : 1);
     mLvl = act / thrM; mOn = mLvl > 1;
+    }
     st.lum = st.lumN ? st.lumSum / st.lumN : null; st.lumSum = 0; st.lumN = 0;
   }
   if (forcedOn('motion')) { mLvl = 1.6; mOn = true; mR = 0.6; }
@@ -786,8 +805,60 @@ function postText() {
 
 /* ---------- güvenlik bekçisi: izleme durursa haber ver ---------- */
 function checkLight() {
-  if (cfg.cam && st.lum != null && st.lum < 18 && !st.warned.dark) { st.warned.dark = true; logEvent('Oda kamera için çok karanlık'); }
+  if (cfg.cam && st.lum != null && st.lum < 18 && !st.torchOn && !st.warned.dark) { st.warned.dark = true; logEvent('Oda kamera için çok karanlık'); }
   if (st.lum != null && st.lum >= 25) st.warned.dark = false;
+  torchTick();
+}
+
+/* ---------- karanlık oda: telefonun kendi flaşı ---------- */
+const DARK_LUM = 18;   // bu parlaklığın altında kamera işe yaramaz (0-255)
+
+// Flaşı açar/kapatır. Tarayıcıda parlaklık ayarı yok, yalnızca aç/kapa var.
+async function setTorch(on) {
+  if (st.torchBusy || st.torchOn === on) return st.torchOn === on;
+  const t = st.stream && st.stream.getVideoTracks()[0];
+  if (!t) return false;
+  st.torchBusy = true;
+  try {
+    await t.applyConstraints({advanced: [{torch: on}]});
+    st.torchOn = on;
+    st.torchCap = true;
+    st.torchBase = null; st.torchSeed = []; st.brightFor = 0; st.darkFor = 0;
+    st.camBlindUntil = Date.now() + 4000;
+    return true;
+  } catch (e) {
+    st.torchCap = false;
+    if (!st.warned.torch) {
+      st.warned.torch = true;
+      logEvent(cfg.front ? 'Ön kamerada flaş yok, açılamadı' : 'Bu telefon tarayıcıdan flaşı açmıyor');
+    }
+    return false;
+  } finally { st.torchBusy = false; }
+}
+
+function torchTick() {
+  if (!st.running || !cfg.cam || cfg.torch === 'off') { if (st.torchOn) setTorch(false); return; }
+  if (st.torchCap === false) return;                       // telefon izin vermedi, bir kez loglandı
+  if (cfg.torch === 'on') {
+    if (!st.torchOn) setTorch(true).then(ok => { if (ok) logEvent('Flaş açıldı (sürekli)'); });
+    return;
+  }
+  const lum = st.lum;
+  if (lum == null) return;
+  if (!st.torchOn) {
+    // anlık bir gölge yüzünden yanmasın: 5 saniye üst üste karanlık olmalı
+    st.darkFor = lum < DARK_LUM ? st.darkFor + 1 : 0;
+    if (st.darkFor >= 5) setTorch(true).then(ok => { if (ok) logEvent('Oda karardı, flaş açıldı'); });
+    return;
+  }
+  // Flaş yanıyor. Odanın kendi ışığı açılırsa flaşa gerek kalmaz; bunu anlamak için
+  // flaşlı hâlin temel parlaklığını ölçüp üstüne belirgin bir artış arıyoruz.
+  // (Flaşı deneme amaçlı kısa kısa söndürmek kareyi titretir, onu yapmıyoruz.)
+  if (st.torchSeed.length < 3) { st.torchSeed.push(lum); return; }
+  if (st.torchBase == null) st.torchBase = Math.max(...st.torchSeed);
+  const esik = Math.max(st.torchBase * 1.8, st.torchBase + 40);
+  st.brightFor = lum > esik ? st.brightFor + 1 : 0;
+  if (st.brightFor >= 10) setTorch(false).then(ok => { if (ok) logEvent('Oda aydınlandı, flaş söndürüldü'); });
 }
 function onBattery() {
   const b = st.battery; if (!b || !st.running) return;
@@ -842,7 +913,9 @@ async function start() {
   try { await startMedia(); }
   catch (e) { return startError('Kamera/mikrofon açılamadı. Chrome izin sorduğunda "İzin ver" deyin. Engellediyseniz adres çubuğundaki kilit simgesinden izni açın.'); }
   if (cfg.shake) window.addEventListener('devicemotion', onMotion);
-  Object.assign(st, {running: true, startedAt: Date.now(), pausedUntil: 0, alarm: null, lastAlarmEnd: 0, fr: [], frHist: [], snd: [], acc: [], accHist: [], rawM: [], rawS: [], rawA: [], hM: [], hS: [], hA: [], warned: {}, lum: null});
+  Object.assign(st, {running: true, startedAt: Date.now(), pausedUntil: 0, alarm: null, lastAlarmEnd: 0, fr: [], frHist: [], snd: [], acc: [], accHist: [], rawM: [], rawS: [], rawA: [], hM: [], hS: [], hA: [], warned: {}, lum: null,
+    torchCap: null, torchOn: false, torchBase: null, torchSeed: [], torchBusy: false,
+    camBlindUntil: 0, darkFor: 0, brightFor: 0});
   prevGray = null;
   $('#previewBox').hidden = !cfg.cam; $('#roiRow').hidden = !cfg.cam;
   setTimeout(drawRoi, 600);
@@ -860,6 +933,9 @@ function startError(msg) { const el = $('#startErr'); el.textContent = msg; el.h
 function stop() {
   st.running = false;
   st.timers.forEach(clearInterval); st.timers = [];
+  // once flasi sondur, sonra kamerayi kapat: LED yanik kalmasin
+  if (st.torchOn) { try { setTorch(false); } catch (e) {} }
+  st.torchOn = false; st.torchCap = null;
   if (st.stream) st.stream.getTracks().forEach(t => t.stop());
   st.stream = null; st.an = null;
   window.removeEventListener('devicemotion', onMotion);
@@ -905,7 +981,9 @@ function renderWatch(now) {
   const w = [];
   if (st.offlineAt) w.push(['bad', "İnternet yok. Alarm olursa iPhone'lara bildirim gidemez; yalnızca siren çalar."]);
   if (st.battery && !st.battery.charging) w.push(['warn', `Telefon şarjda değil (%${Math.round(st.battery.level * 100)}). Gece boyunca şarja takılı kalsın.`]);
-  if (cfg.cam && st.lum != null && st.lum < 18) w.push(['warn', 'Oda kamera için çok karanlık. Loş bir gece lambası açın ya da mikrofona güvenin.']);
+  if (cfg.cam && st.lum != null && st.lum < 18 && !st.torchOn) w.push(['warn', 'Oda kamera için çok karanlık. “Karanlık oda” ayarını <b>Karanlıkta</b> yapın, loş bir gece lambası açın ya da mikrofona güvenin.']);
+  if (cfg.cam && cfg.torch !== 'off' && cfg.front) w.push(['warn', 'Ön kamera seçili. Flaş arka kamerada olduğu için yanmaz.']);
+  if (cfg.cam && cfg.torch !== 'off' && st.torchCap === false && !cfg.front) w.push(['warn', 'Bu telefon tarayıcıdan flaşı açamıyor. Loş bir gece lambası açın ya da mikrofona güvenin.']);
   if (!st.wake && 'wakeLock' in navigator) w.push(['warn', 'Ekranı açık tutma kilidi alınamadı, denemeye devam ediliyor. Samsung ayarlarında Geliştirici seçenekleri → “Aktiv lassen” (şarjdayken ekran açık kalsın) açıksa bu uyarı önemsizdir.']);
   if (!('wakeLock' in navigator)) w.push(['warn', 'Bu tarayıcı ekranı açık tutamıyor. Samsung ayarlarından ekran zaman aşımını en uzuna alın.']);
   if (!poAktif()) w.push(['bad', "Pushover kurulmadı: iPhone sessizdeyken alarm SES ÇIKARMAZ, yalnızca kısa titrer."]);
@@ -961,6 +1039,12 @@ function bindSetup() {
     const el = $(id); el.checked = !!cfg[k];
     el.addEventListener('change', () => { cfg[k] = el.checked; save('gb.cfg', cfg); });
   });
+  const tor = $('#torch-' + cfg.torch); if (tor) tor.checked = true;
+  document.querySelectorAll('input[name="torch"]').forEach(el => el.addEventListener('change', () => {
+    cfg.torch = el.value; save('gb.cfg', cfg);
+    logEvent('Flaş ayarı: ' + ({off: 'kapalı', auto: 'karanlıkta yansın', on: 'sürekli yanık'})[cfg.torch]);
+    if (st.running) { if (cfg.torch === 'off') setTorch(false); else torchTick(); }
+  }));
   const sens = $('#sens-' + cfg.sens); if (sens) sens.checked = true;
   const dur = $('#dur-' + cfg.dur); if (dur) dur.checked = true;
   document.querySelectorAll('input[name="sens"]').forEach(el => el.addEventListener('change', () => { cfg.sens = +el.value; save('gb.cfg', cfg); }));
@@ -1050,7 +1134,7 @@ function resetCamBaseline() { st.rawM = []; st.hM = st.hM.map(() => 0); st.frHis
   window.addEventListener('resize', () => drawRoi());
 })();
 
-if (TEST) window.__gb = {st, cfg, force(kind, secs) { st.forced = {kind, until: Date.now() + secs * 1000}; }, notify, poBody, poPrio, poAktif, queue, alarmSesi, evaluateSecond, tick, alarmReason, THR, WARMUP, BANDS};
+if (TEST) window.__gb = {st, cfg, force(kind, secs) { st.forced = {kind, until: Date.now() + secs * 1000}; }, notify, poBody, poPrio, poAktif, queue, alarmSesi, evaluateSecond, tick, alarmReason, THR, WARMUP, BANDS, setTorch, torchTick, DARK_LUM};
 bindSetup();
 })();
 </script>
